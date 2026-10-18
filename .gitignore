@@ -1,0 +1,9 @@
+bin/
+obj/
+publish/
+.vs/
+*.user
+# נתונים אישיים – לעולם לא לעלות ל-GitHub
+kick_auth.json
+*.corrupt-*
+server/.dev.vars

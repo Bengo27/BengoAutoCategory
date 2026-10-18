@@ -1,0 +1,51 @@
+# פרסום גרסה חדשה: GitHub → Actions → "Release" → Run workflow → מספר גרסה (למשל 0.3.0)
+# בונה את BengoAutoCategory.exe על Windows, מריץ את כל הבדיקות, ומפרסם Release.
+# התוכנות של הסטרימרים יראו "גרסה חדשה זמינה" ויתעדכנו בלחיצה.
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "מספר גרסה (למשל 0.3.0) – חייב להיות גבוה מהגרסה הקודמת"
+        required: true
+      notes:
+        description: "מה חדש בגרסה (יוצג לסטרימרים)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Check version format
+        shell: pwsh
+        run: |
+          if ("${{ inputs.version }}" -notmatch '^\d+\.\d+\.\d+$') { throw "Version must look like 0.3.0" }
+
+      - name: Run tests
+        run: dotnet run --project tests/AutoCategory.Tests -c Release
+
+      - name: Build exe
+        run: >
+          dotnet publish src/AutoCategory.App/AutoCategory.App.csproj -c Release -r win-x64 --self-contained true
+          -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true
+          -p:Version=${{ inputs.version }} -o publish
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ inputs.version }}
+          name: Bengo AutoCategory ${{ inputs.version }}
+          body: ${{ inputs.notes }}
+          files: publish/BengoAutoCategory.exe
+          make_latest: true

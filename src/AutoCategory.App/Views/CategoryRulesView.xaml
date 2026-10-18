@@ -1,0 +1,61 @@
+<UserControl x:Class="AutoCategory.App.Views.CategoryRulesView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Grid Margin="34,24,34,24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <StackPanel>
+            <TextBlock Text="כללי קטגוריות" Style="{StaticResource PageTitle}" />
+            <TextBlock Style="{StaticResource PageSubtitle}"
+                       Text="כל כלל מחבר קובץ הרצה של משחק לקטגוריה בסטרים. הכללים נשמרים בקובץ game_mappings.json ונטענים מחדש בכל הפעלה." />
+        </StackPanel>
+
+        <DockPanel Grid.Row="1" Margin="0,0,0,12">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                <Button Style="{StaticResource PrimaryButton}" Content="הוסף" Command="{Binding AddCommand}" MinWidth="80" />
+                <Button Content="ערוך" Command="{Binding EditCommand}" MinWidth="80" />
+                <Button Style="{StaticResource DangerButton}" Content="מחק" Command="{Binding DeleteCommand}" MinWidth="80" />
+            </StackPanel>
+            <Grid Width="280" HorizontalAlignment="Left">
+                <TextBox Text="{Binding Search, UpdateSourceTrigger=PropertyChanged}" />
+                <TextBlock Text="חיפוש משחק או קובץ…" Foreground="{StaticResource MutedBrush}" Margin="11,0,0,0"
+                           VerticalAlignment="Center" IsHitTestVisible="False">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Search}" Value="">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </Grid>
+        </DockPanel>
+
+        <DataGrid Grid.Row="2" ItemsSource="{Binding Mappings}" SelectedItem="{Binding Selected, Mode=TwoWay}"
+                  MouseDoubleClick="Grid_MouseDoubleClick">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="קובץ הרצה" Binding="{Binding Executable}" Width="2*" />
+                <DataGridTextColumn Header="קטגוריה" Binding="{Binding Category}" Width="2*" />
+                <DataGridTextColumn Header="תנאי כותרת" Binding="{Binding WindowTitleContains}" Width="*" />
+                <DataGridTextColumn Header="מזהה בקיק" Binding="{Binding KickCategoryId}" Width="90" />
+                <DataGridCheckBoxColumn Header="דו-משמעי" Binding="{Binding IsAmbiguous}" Width="80" />
+                <DataGridTextColumn Header="הערה" Binding="{Binding Notes}" Width="2*" />
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <DockPanel Grid.Row="3" Margin="0,10,0,0">
+            <Button DockPanel.Dock="Right" Style="{StaticResource GhostButton}" Content="הצג את הקובץ בתיקייה"
+                    Command="{Binding OpenFileCommand}" />
+            <TextBlock Text="{Binding CountText}" Style="{StaticResource Muted}" VerticalAlignment="Center" />
+        </DockPanel>
+    </Grid>
+</UserControl>

@@ -1,0 +1,79 @@
+<UserControl x:Class="AutoCategory.App.Views.TestModeView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="34,24,34,24">
+            <TextBlock Text="מצב בדיקה" Style="{StaticResource PageTitle}" />
+            <TextBlock Style="{StaticResource PageSubtitle}"
+                       Text="בדיקת לוגיקת הזיהוי והטיימר בלי להתקין או להפעיל משחקים: בוחרים תוכנה מדומה, והתוכנה מתנהגת כאילו היא בחזית. מומלץ לפתוח את לוח הבקרה במקביל ולראות את הספירה לאחור." />
+
+            <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                <DockPanel>
+                    <CheckBox DockPanel.Dock="Right" Style="{StaticResource ToggleSwitch}" IsChecked="{Binding IsEnabled, Mode=TwoWay}" />
+                    <StackPanel>
+                        <TextBlock Text="הפעל מצב בדיקה" FontSize="15" FontWeight="SemiBold" />
+                        <TextBlock Style="{StaticResource Muted}" Text="כשמופעל, הזיהוי האמיתי של החלון מושהה ומשתמשים בתוכנה המדומה." />
+                    </StackPanel>
+                </DockPanel>
+            </Border>
+
+            <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                <StackPanel>
+                    <TextBlock Text="בחר תוכנה מדומה בחזית" Style="{StaticResource CardLabel}" />
+                    <ItemsControl ItemsSource="{Binding Executables}" Margin="-4,4,0,0">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Button Content="{Binding}" Margin="4" FlowDirection="LeftToRight"
+                                        Command="{Binding DataContext.SimulateCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                        CommandParameter="{Binding}" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <DockPanel Margin="0,14,0,0">
+                        <Button DockPanel.Dock="Right" Content="דמה" MinWidth="70" Command="{Binding SimulateCustomCommand}" />
+                        <TextBlock DockPanel.Dock="Left" Text="קובץ אחר:" VerticalAlignment="Center" Margin="0,0,10,0" />
+                        <TextBox Text="{Binding CustomExe, UpdateSourceTrigger=PropertyChanged}" FlowDirection="LeftToRight"
+                                 Margin="0,0,8,0" ToolTip="למשל: eldenring.exe" />
+                    </DockPanel>
+
+                    <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
+                        <TextBlock Text="כרגע בחזית (מדומה):" Foreground="{StaticResource MutedBrush}" />
+                        <TextBlock Text="{Binding CurrentFake}" FontWeight="SemiBold" Margin="8,0,0,0" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource Card}" Margin="0">
+                <DockPanel>
+                    <Button DockPanel.Dock="Right" Content="קצר לבדיקה (5 / 10 שניות)" Command="{Binding QuickDelayCommand}" />
+                    <StackPanel>
+                        <TextBlock Text="טיימרים" FontSize="15" FontWeight="SemiBold" />
+                        <TextBlock Style="{StaticResource Muted}" Text="{Binding DelayText}" />
+                        <TextBlock Style="{StaticResource Muted}" Text="אפשר להחזיר לערכי ברירת המחדל בעמוד ההגדרות." />
+                    </StackPanel>
+                </DockPanel>
+            </Border>
+
+            <Border Style="{StaticResource Card}" Margin="0,12,0,0">
+                <StackPanel>
+                    <TextBlock Text="תרחישים מומלצים לבדיקה" Style="{StaticResource CardLabel}" />
+                    <TextBlock Style="{StaticResource Muted}" FontSize="13" LineHeight="22">
+                        1. בחר GTA5.exe וחכה – אחרי זמן האימות יופיע ביומן "שינוי קטגוריה מדומה".<LineBreak />
+                        2. בחר cs2.exe, ובאמצע הספירה עבור ל-Discord.exe – הספירה נעצרת ולא מתאפסת.<LineBreak />
+                        3. באמצע ספירה של cs2.exe חזור ל-GTA5.exe – השינוי מתבטל (Alt-Tab קצר).<LineBreak />
+                        4. בחר unknown-game.exe – בלוח הבקרה יופיע "הוסף כלל".<LineBreak />
+                        5. בחר chrome.exe או obs64.exe לאורך זמן – אף פעם לא משתנה קטגוריה.<LineBreak />
+                        6. בחר javaw.exe – מזוהה כ-Minecraft בוודאות 80%.
+                    </TextBlock>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

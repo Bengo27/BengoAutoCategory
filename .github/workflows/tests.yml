@@ -1,0 +1,21 @@
+# מריץ את הבדיקות האוטומטיות בכל שינוי בקוד
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - run: dotnet run --project tests/AutoCategory.Tests -c Release
+      - name: Build app (check it compiles)
+        run: dotnet build src/AutoCategory.App/AutoCategory.App.csproj -c Release
+      - name: Broker tests
+        run: node server/test-worker.mjs

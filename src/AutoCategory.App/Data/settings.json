@@ -1,0 +1,19 @@
+{
+  "detectionIntervalSeconds": 2,
+  "verificationDelaySeconds": 20,
+  "minSecondsBetweenChanges": 120,
+  "returnToDefaultEnabled": true,
+  "returnToDefaultMinutes": 5,
+  "defaultCategory": "Just Chatting",
+  "currentCategory": "Just Chatting",
+  "autoCategoryEnabled": true,
+  "startWithWindows": false,
+  "minimizeToTray": true,
+  "showNotifications": true,
+  "saveLogsToFile": true,
+  "kickLiveMode": true,
+  "fallbackCategoryEnabled": true,
+  "fallbackCategory": "Games \u002B Demos",
+  "autoDetectGames": true,
+  "extraGameFolders": []
+}

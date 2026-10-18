@@ -1,0 +1,134 @@
+{
+  "version": 1,
+  "mappings": [
+    {
+      "executable": "GTA5.exe",
+      "category": "Grand Theft Auto V",
+      "isAmbiguous": false
+    },
+    {
+      "executable": "GTA5_Enhanced.exe",
+      "category": "Grand Theft Auto V",
+      "isAmbiguous": false,
+      "notes": "GTA V Enhanced (גרסת 2025)"
+    },
+    {
+      "executable": "VALORANT-Win64-Shipping.exe",
+      "category": "VALORANT",
+      "isAmbiguous": false
+    },
+    {
+      "executable": "cs2.exe",
+      "category": "Counter-Strike 2",
+      "isAmbiguous": false
+    },
+    {
+      "executable": "javaw.exe",
+      "category": "Minecraft",
+      "windowTitleContains": "Minecraft",
+      "isAmbiguous": true,
+      "notes": "javaw.exe מריץ כל תוכנת Java – מתאים רק אם בכותרת החלון מופיע Minecraft"
+    },
+    {
+      "executable": "Minecraft.Windows.exe",
+      "category": "Minecraft",
+      "isAmbiguous": false,
+      "notes": "Minecraft Bedrock"
+    },
+    {
+      "executable": "League of Legends.exe",
+      "category": "League of Legends",
+      "isAmbiguous": false,
+      "notes": "בתוך המשחק"
+    },
+    {
+      "executable": "LeagueClientUx.exe",
+      "category": "League of Legends",
+      "isAmbiguous": false,
+      "notes": "הלובי של League"
+    },
+    {
+      "executable": "LeagueClient.exe",
+      "category": "League of Legends",
+      "isAmbiguous": false,
+      "notes": "הלובי של League"
+    },
+    {
+      "executable": "FortniteClient-Win64-Shipping.exe",
+      "category": "Fortnite",
+      "isAmbiguous": false
+    },
+    {
+      "executable": "RocketLeague.exe",
+      "category": "Rocket League",
+      "isAmbiguous": false
+    },
+    {
+      "executable": "Overwatch.exe",
+      "category": "Overwatch 2",
+      "isAmbiguous": false
+    },
+    {
+      "executable": "Marvel-Win64-Shipping.exe",
+      "category": "Marvel Rivals",
+      "isAmbiguous": false,
+      "notes": "שם הקובץ טרם אומת על מחשב אמיתי"
+    },
+    {
+      "executable": "r5apex.exe",
+      "category": "Apex Legends",
+      "isAmbiguous": false
+    },
+    {
+      "executable": "r5apex_dx12.exe",
+      "category": "Apex Legends",
+      "isAmbiguous": false
+    },
+    {
+      "executable": "dota2.exe",
+      "category": "Dota 2",
+      "isAmbiguous": false
+    },
+    {
+      "executable": "RobloxPlayerBeta.exe",
+      "category": "Roblox",
+      "isAmbiguous": false
+    },
+    {
+      "executable": "RustClient.exe",
+      "category": "Rust",
+      "isAmbiguous": false
+    }
+  ],
+  "ignoreList": [
+    "obs64.exe",
+    "obs32.exe",
+    "Streamlabs OBS.exe",
+    "StreamDeck.exe",
+    "Discord.exe",
+    "Spotify.exe",
+    "claude.exe",
+    "steam.exe",
+    "steamwebhelper.exe",
+    "EpicGamesLauncher.exe",
+    "Battle.net.exe",
+    "RiotClientServices.exe",
+    "RiotClientUx.exe",
+    "EADesktop.exe",
+    "MinecraftLauncher.exe",
+    "chrome.exe",
+    "msedge.exe",
+    "firefox.exe",
+    "opera.exe",
+    "brave.exe",
+    "explorer.exe",
+    "ShellExperienceHost.exe",
+    "StartMenuExperienceHost.exe",
+    "SearchHost.exe",
+    "LockApp.exe",
+    "Taskmgr.exe",
+    "TextInputHost.exe",
+    "ApplicationFrameHost.exe",
+    "BengoAutoCategory.exe"
+  ]
+}

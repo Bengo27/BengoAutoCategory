@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <!-- WinForms משמש רק לאייקון במגש המערכת (NotifyIcon) -->
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>AutoCategory.App</RootNamespace>
+    <AssemblyName>BengoAutoCategory</AssemblyName>
+    <ApplicationIcon>Assets\app.ico</ApplicationIcon>
+    <Product>Bengo AutoCategory</Product>
+    <Version>0.2.0</Version>
+    <Description>זיהוי משחק אוטומטי ושינוי קטגוריה לסטרימרים</Description>
+    <!-- מאפשר לבנות גם ממחשב שאינו Windows -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+  <!-- מונע התנגשות שמות בין WPF ל-WinForms (Button, Application, MessageBox...) -->
+  <ItemGroup>
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AutoCategory.Core\AutoCategory.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- הגדרות ההפצה (שרת התחברות + מאגר עדכונים) – מוטמעות בתוך ה-exe -->
+    <EmbeddedResource Include="app_config.json" LogicalName="app_config.json" />
+    <Resource Include="Assets\app.ico" />
+    <Resource Include="Assets\logo.png" />
+    <None Update="Data\game_mappings.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
+    <None Update="Data\settings.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
+  </ItemGroup>
+
+</Project>
