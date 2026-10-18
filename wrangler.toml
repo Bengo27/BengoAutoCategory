@@ -1,0 +1,10 @@
+# Cloudflare Worker – שרת ההתחברות לקיק (נבנה אוטומטית מ-GitHub)
+name = "bengoautocategory"
+main = "server/worker.js"
+compatibility_date = "2025-09-01"
+
+# שומר משתנים שהוגדרו בלוח הבקרה של Cloudflare (KICK_CLIENT_ID, KICK_CLIENT_SECRET)
+keep_vars = true
+
+[observability]
+enabled = true
