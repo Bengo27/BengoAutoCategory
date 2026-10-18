@@ -1,10 +1,10 @@
 @echo off
 setlocal
 cd /d "%~dp0"
-title Bengo AutoCategory - Build
+title Catego - Build
 
 echo ============================================
-echo   Bengo AutoCategory - Build (Milestone 1)
+echo   Catego - Build
 echo ============================================
 echo.
 
@@ -44,12 +44,13 @@ if errorlevel 1 (
 )
 
 echo.
-echo Closing the running BengoAutoCategory (if open)...
+echo Closing the running Catego (if open)...
+taskkill /im Catego.exe /f >nul 2>nul
 taskkill /im BengoAutoCategory.exe /f >nul 2>nul
 timeout /t 1 /nobreak >nul
 
 echo.
-echo [2/2] Building BengoAutoCategory.exe ...
+echo [2/2] Building Catego.exe ...
 if exist publish rmdir /s /q publish
 dotnet publish src\AutoCategory.App\AutoCategory.App.csproj -c Release -r win-x64 --self-contained true ^
   -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true ^
@@ -65,5 +66,5 @@ echo.
 echo ============================================
 echo   Done!  Starting the new version...
 echo ============================================
-start "" "%~dp0publish\BengoAutoCategory.exe"
+start "" "%~dp0publish\Catego.exe"
 timeout /t 3 /nobreak >nul

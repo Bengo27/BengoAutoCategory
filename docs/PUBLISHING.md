@@ -65,7 +65,7 @@
 3. אחרי כ-5 דקות הגרסה מופיעה ב-**Releases**, וכל התוכנות הפתוחות יציגו "גרסה חדשה זמינה" (תוך 6 שעות, או מיד ב"בדוק עדכונים").
 
 **קישור קבוע להורדה לסטרימרים:**
-`https://github.com/<שם-המשתמש>/BengoAutoCategory/releases/latest/download/BengoAutoCategory.exe`
+`https://github.com/<שם-המשתמש>/BengoAutoCategory/releases/latest/download/Catego.exe`
 
 ---
 

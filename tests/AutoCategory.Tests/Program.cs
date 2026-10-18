@@ -448,7 +448,7 @@ static class Tests
         fake.SetForeground("GTA5.exe");
         for (int i = 0; i < 6; i++) { e.Now = e.Now.AddSeconds(1); await coord.TickAsync(e.Now); }
 
-        fake.SetForeground("BengoAutoCategory.exe"); // הסטרימר מסתכל על לוח הבקרה
+        fake.SetForeground("Catego.exe"); // הסטרימר מסתכל על לוח הבקרה
         for (int i = 0; i < 30; i++) { e.Now = e.Now.AddSeconds(1); await coord.TickAsync(e.Now); }
         Assert.Equal("GTA5.exe", shown?.Foreground.ExecutableName, "dashboard keeps showing the game");
         Assert.Equal(EnginePhase.PendingPaused, engine.State.Phase, "own window pauses the countdown");

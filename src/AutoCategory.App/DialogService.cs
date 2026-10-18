@@ -39,6 +39,6 @@ public static class DialogService
     public static void ShowError(string message) =>
         MessageBox.Show(message, "שגיאה", MessageBoxButton.OK, MessageBoxImage.Warning, MessageBoxResult.OK, Rtl);
 
-    public static void ShowInfo(string message, string title = "Bengo AutoCategory") =>
+    public static void ShowInfo(string message, string title = "Catego") =>
         MessageBox.Show(message, title, MessageBoxButton.OK, MessageBoxImage.Information, MessageBoxResult.OK, Rtl);
 }

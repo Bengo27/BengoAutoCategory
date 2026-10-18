@@ -31,7 +31,7 @@ public partial class App : Application
         }
         if (!isFirst)
         {
-            DialogService.ShowInfo("Bengo AutoCategory כבר פועל – חפש את האייקון במגש המערכת ליד השעון.");
+            DialogService.ShowInfo("Catego כבר פועל – חפש את האייקון במגש המערכת ליד השעון.");
             Shutdown();
             return;
         }
@@ -93,7 +93,7 @@ public partial class App : Application
                 if (!_trayHintShown && _services.Settings.Current.ShowNotifications)
                 {
                     _trayHintShown = true;
-                    _tray?.ShowNotification("Bengo AutoCategory ממשיך לפעול", "הזיהוי ממשיך ברקע. לחיצה כפולה על האייקון פותחת את לוח הבקרה.");
+                    _tray?.ShowNotification("Catego ממשיך לפעול", "הזיהוי ממשיך ברקע. לחיצה כפולה על האייקון פותחת את לוח הבקרה.");
                 }
             }
             else

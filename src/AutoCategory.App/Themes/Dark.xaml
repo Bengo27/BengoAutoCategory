@@ -9,8 +9,8 @@
     <Color x:Key="BorderColor">#2A2E38</Color>
     <Color x:Key="TextColor">#E8EAED</Color>
     <Color x:Key="MutedColor">#9AA0A6</Color>
-    <Color x:Key="AccentColor">#53FC18</Color>
-    <Color x:Key="AccentHoverColor">#7BFF4D</Color>
+    <Color x:Key="AccentColor">#2DD4BF</Color>
+    <Color x:Key="AccentHoverColor">#5EEAD4</Color>
     <Color x:Key="WarningColor">#F5B841</Color>
     <Color x:Key="DangerColor">#F2545B</Color>
     <Color x:Key="InfoColor">#5AA9FF</Color>
@@ -359,7 +359,7 @@
                             <Setter TargetName="Bd" Property="Background" Value="{StaticResource CardHoverBrush}" />
                         </Trigger>
                         <Trigger Property="IsSelected" Value="True">
-                            <Setter TargetName="Bd" Property="Background" Value="#2D3A2A" />
+                            <Setter TargetName="Bd" Property="Background" Value="#163A36" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -393,7 +393,7 @@
         </Setter>
         <Style.Triggers>
             <Trigger Property="IsSelected" Value="True">
-                <Setter Property="Background" Value="#2D3A2A" />
+                <Setter Property="Background" Value="#163A36" />
                 <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
             </Trigger>
         </Style.Triggers>

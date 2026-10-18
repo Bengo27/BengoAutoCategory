@@ -104,7 +104,7 @@
                     <TextBlock Style="{StaticResource Muted}" FontSize="13" LineHeight="22">
                         1. ודא שאימות דו-שלבי (2FA) מופעל בחשבון הקיק – בלי זה עמוד המפתחים לא נפתח.<LineBreak />
                         2. היכנס לעמוד המפתחים (כפתור למטה) ולחץ על יצירת אפליקציה חדשה.<LineBreak />
-                        3. שם: למשל "Bengo AutoCategory". תיאור: מה שתרצה.<LineBreak />
+                        3. שם: למשל "Catego". תיאור: מה שתרצה.<LineBreak />
                         4. ב-Redirect URL הדבק בדיוק את הכתובת הזו:
                     </TextBlock>
                     <DockPanel Margin="18,6,0,6">

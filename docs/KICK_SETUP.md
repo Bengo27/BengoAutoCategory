@@ -16,7 +16,7 @@
 ### 2. יצירת אפליקציה
 1. היכנס ל-https://kick.com/settings/developer (אפשר גם מהכפתור בעמוד "חיבור לקיק" בתוכנה).
 2. צור אפליקציה חדשה:
-   - **שם:** למשל `Bengo AutoCategory`
+   - **שם:** למשל `Catego`
    - **Redirect URL:** בדיוק `http://localhost:47653/callback` (אפשר להעתיק מהתוכנה בלחיצה)
    - **הרשאות (Scopes), אם מופיעה בחירה:** `user:read`, `channel:read`, `channel:write`
    - **Webhook:** לא צריך

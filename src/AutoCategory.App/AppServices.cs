@@ -49,7 +49,7 @@ public sealed class AppServices : IDisposable
         Detector = new GameDetectionService(Mappings);
 
         // ── קיק ──
-        _http.DefaultRequestHeaders.UserAgent.ParseAdd("BengoAutoCategory/" + (typeof(AppServices).Assembly.GetName().Version?.ToString(3) ?? "0"));
+        _http.DefaultRequestHeaders.UserAgent.ParseAdd("Catego/" + (typeof(AppServices).Assembly.GetName().Version?.ToString(3) ?? "0"));
         Config = AppConfigLoader.Load(DataDirectory);
         var kickStore = new KickAuthStore(DataDirectory, new DpapiSecretProtector());
         var kickApi = new KickApiClient(_http, kickStore)
@@ -77,6 +77,7 @@ public sealed class AppServices : IDisposable
             Detector, Engine, log, Settings);
 
         Coordinator.Mappings = Mappings;
+        Coordinator.SelfExecutable = Win32ForegroundWindowService.OwnExeName;
 
         KickSync = new KickSyncService(Kick, Engine, log) { CanWrite = () => IsLive };
         Kick.ConnectionChanged += () => { if (Kick.IsConnected) _ = KickSync.SyncNowAsync(); };

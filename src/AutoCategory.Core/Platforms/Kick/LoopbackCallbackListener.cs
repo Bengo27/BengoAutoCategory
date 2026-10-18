@@ -132,16 +132,16 @@ public sealed class LoopbackCallbackListener : IDisposable
     private const string PageStyle =
         "<style>body{background:#0E0F13;color:#E8EAED;font-family:'Segoe UI',Arial,sans-serif;display:flex;" +
         "align-items:center;justify-content:center;height:100vh;margin:0}div{text-align:center}" +
-        "h1{color:#53FC18;font-size:28px}p{color:#9AA0A6;font-size:16px}</style>";
+        "h1{color:#2DD4BF;font-size:28px}p{color:#9AA0A6;font-size:16px}</style>";
 
     private const string SuccessPage =
-        "<!doctype html><html dir='rtl' lang='he'><head><meta charset='utf-8'><title>Bengo AutoCategory</title>" + PageStyle +
-        "</head><body><div><h1>התחברת לקיק בהצלחה ✓</h1><p>אפשר לסגור את הלשונית ולחזור ל-Bengo AutoCategory.</p></div></body></html>";
+        "<!doctype html><html dir='rtl' lang='he'><head><meta charset='utf-8'><title>Catego</title>" + PageStyle +
+        "</head><body><div><h1>התחברת לקיק בהצלחה ✓</h1><p>אפשר לסגור את הלשונית ולחזור ל-Catego.</p></div></body></html>";
 
     private static string ErrorPage(IReadOnlyDictionary<string, string> q)
     {
         var err = WebUtility.HtmlEncode(q.TryGetValue("error_description", out var d) ? d : q.TryGetValue("error", out var e) ? e : "לא התקבל קוד");
-        return "<!doctype html><html dir='rtl' lang='he'><head><meta charset='utf-8'><title>Bengo AutoCategory</title>" + PageStyle +
+        return "<!doctype html><html dir='rtl' lang='he'><head><meta charset='utf-8'><title>Catego</title>" + PageStyle +
                $"</head><body><div><h1 style='color:#F2545B'>ההתחברות לא הושלמה</h1><p>{err}</p></div></body></html>";
     }
 

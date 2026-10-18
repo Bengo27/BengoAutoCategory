@@ -78,7 +78,7 @@ public sealed class DetectionCoordinator : IDisposable
     }
 
     /// <summary>שם קובץ ההרצה של התוכנה עצמה.</summary>
-    public string SelfExecutable { get; set; } = "BengoAutoCategory.exe";
+    public string SelfExecutable { get; set; } = "Catego.exe";
 
     public bool TestMode
     {

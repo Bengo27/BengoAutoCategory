@@ -36,10 +36,10 @@
                                         <Setter Property="Background" Value="#2A2E38" />
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding Level}" Value="Change">
-                                                <Setter Property="Background" Value="#24401A" />
+                                                <Setter Property="Background" Value="#123A35" />
                                             </DataTrigger>
                                             <DataTrigger Binding="{Binding Level}" Value="Confirmed">
-                                                <Setter Property="Background" Value="#24401A" />
+                                                <Setter Property="Background" Value="#123A35" />
                                             </DataTrigger>
                                             <DataTrigger Binding="{Binding Level}" Value="Pending">
                                                 <Setter Property="Background" Value="#1D3046" />

@@ -129,6 +129,7 @@
     "Taskmgr.exe",
     "TextInputHost.exe",
     "ApplicationFrameHost.exe",
+    "Catego.exe",
     "BengoAutoCategory.exe"
   ]
 }

@@ -1,5 +1,5 @@
 /**
- * Bengo AutoCategory – Kick token broker (Cloudflare Worker)
+ * Catego – Kick token broker (Cloudflare Worker)
  *
  * Holds the Kick app's Client Secret so streamers never need their own Kick developer app.
  * It only does the two OAuth calls that require the secret:

@@ -131,10 +131,10 @@ public sealed class UpdateService
         var exe = Environment.ProcessPath ?? throw new InvalidOperationException("לא ידוע איפה התוכנה מותקנת.");
         if (!exe.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ||
             Path.GetFileName(exe).Equals("dotnet.exe", StringComparison.OrdinalIgnoreCase))
-            throw new InvalidOperationException("עדכון אוטומטי עובד רק בגרסה המהודרת (BengoAutoCategory.exe).");
+            throw new InvalidOperationException("עדכון אוטומטי עובד רק בגרסה המהודרת (Catego.exe).");
 
         var dir = Path.GetDirectoryName(exe)!;
-        var tmp = Path.Combine(dir, "BengoAutoCategory.new.exe");
+        var tmp = Path.Combine(dir, "Catego.new.exe");
 
         _log.Log(LogLevel.Info, $"מוריד את גרסה {info.Tag}…");
         using (var res = await _http.GetAsync(info.DownloadUrl, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false))

@@ -51,7 +51,7 @@ public static class DefaultData
             "explorer.exe", "ShellExperienceHost.exe", "StartMenuExperienceHost.exe", "SearchHost.exe",
             "LockApp.exe", "Taskmgr.exe", "TextInputHost.exe", "ApplicationFrameHost.exe",
             // התוכנה הזו
-            "BengoAutoCategory.exe",
+            "Catego.exe", "BengoAutoCategory.exe",
         },
     };
 

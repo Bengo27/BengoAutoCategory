@@ -15,6 +15,10 @@ public sealed class Win32ForegroundWindowService : IForegroundWindowService
 {
     private readonly int _ownPid = Environment.ProcessId;
 
+    /// <summary>שם הקובץ של התוכנה עצמה (Catego.exe, או השם הישן אחרי עדכון אוטומטי).</summary>
+    public static string OwnExeName { get; } = Path.GetFileName(Environment.ProcessPath ?? "Catego.exe");
+    public static string OwnProcessName { get; } = Path.GetFileNameWithoutExtension(OwnExeName);
+
     private IReadOnlyCollection<string> _runningCache = Array.Empty<string>();
     private DateTime _runningCacheAt = DateTime.MinValue;
     private static readonly TimeSpan RunningCacheTtl = TimeSpan.FromSeconds(4);
@@ -32,7 +36,7 @@ public sealed class Win32ForegroundWindowService : IForegroundWindowService
 
         // החלון של התוכנה עצמה
         if (pid == _ownPid)
-            return new ForegroundInfo("BengoAutoCategory", "BengoAutoCategory.exe", title, (int)pid, now);
+            return new ForegroundInfo(OwnProcessName, OwnExeName, title, (int)pid, now);
 
         string processName = "";
         try

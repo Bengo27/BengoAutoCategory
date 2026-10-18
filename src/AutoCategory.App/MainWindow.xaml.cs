@@ -51,7 +51,7 @@ public partial class MainWindow : Window
         var kick = _services.Kick;
         if (_services.IsLive)
         {
-            SetBadge("#1C2E17", "AccentBrush", "מחובר לקיק", $"{kick.AccountName} – שינויים אמיתיים בערוץ");
+            SetBadge("#0F2E2B", "AccentBrush", "מחובר לקיק", $"{kick.AccountName} – שינויים אמיתיים בערוץ");
         }
         else if (kick.IsConnected)
         {

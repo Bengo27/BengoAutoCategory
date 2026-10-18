@@ -10,10 +10,10 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
     <RootNamespace>AutoCategory.App</RootNamespace>
-    <AssemblyName>BengoAutoCategory</AssemblyName>
+    <AssemblyName>Catego</AssemblyName>
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
-    <Product>Bengo AutoCategory</Product>
-    <Version>0.3.0</Version>
+    <Product>Catego</Product>
+    <Version>0.3.1</Version>
     <Description>זיהוי משחק אוטומטי ושינוי קטגוריה לסטרימרים</Description>
     <!-- מאפשר לבנות גם ממחשב שאינו Windows -->
     <EnableWindowsTargeting>true</EnableWindowsTargeting>

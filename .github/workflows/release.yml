@@ -1,5 +1,5 @@
 # פרסום גרסה חדשה: GitHub → Actions → "Release" → Run workflow → מספר גרסה (למשל 0.3.0)
-# בונה את BengoAutoCategory.exe על Windows, מריץ את כל הבדיקות, ומפרסם Release.
+# בונה את Catego.exe על Windows, מריץ את כל הבדיקות, ומפרסם Release.
 # התוכנות של הסטרימרים יראו "גרסה חדשה זמינה" ויתעדכנו בלחיצה.
 name: Release
 
@@ -45,7 +45,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ inputs.version }}
-          name: Bengo AutoCategory ${{ inputs.version }}
+          name: Catego ${{ inputs.version }}
           body: ${{ inputs.notes }}
-          files: publish/BengoAutoCategory.exe
+          files: publish/Catego.exe
           make_latest: true

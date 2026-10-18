@@ -26,7 +26,7 @@ public sealed class TrayIconService : IDisposable
             Font = new Drawing.Font("Segoe UI", 10f),
         };
 
-        var title = new WinForms.ToolStripMenuItem("Bengo AutoCategory") { Enabled = false };
+        var title = new WinForms.ToolStripMenuItem("Catego") { Enabled = false };
         _autoItem = new WinForms.ToolStripMenuItem("קטגוריה אוטומטית: פועל");
         var open = new WinForms.ToolStripMenuItem("פתח לוח בקרה");
         _pauseItem = new WinForms.ToolStripMenuItem("השהה זיהוי");
@@ -48,7 +48,7 @@ public sealed class TrayIconService : IDisposable
         _icon = new WinForms.NotifyIcon
         {
             Icon = LoadIcon(),
-            Text = "Bengo AutoCategory",
+            Text = "Catego",
             ContextMenuStrip = menu,
             Visible = true,
         };
@@ -60,7 +60,7 @@ public sealed class TrayIconService : IDisposable
     {
         _autoItem.Text = autoEnabled ? "קטגוריה אוטומטית: פועל" : "קטגוריה אוטומטית: כבוי";
         _pauseItem.Text = paused ? "המשך זיהוי" : "השהה זיהוי";
-        var text = paused ? "Bengo AutoCategory – מושהה" : "Bengo AutoCategory";
+        var text = paused ? "Catego – מושהה" : "Catego";
         _icon.Text = text.Length > 63 ? text[..63] : text;
     }
 

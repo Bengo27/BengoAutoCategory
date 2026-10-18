@@ -1,11 +1,11 @@
-# Bengo AutoCategory – מדריך לסטרימרים
+# Catego – מדריך לסטרימרים
 
 התוכנה מזהה איזה משחק פתוח אצלך ומשנה לבד את הקטגוריה בקיק. בלי לגעת בדשבורד באמצע שידור.
 
 ## התקנה (2 דקות)
 
-1. מורידים את **BengoAutoCategory.exe** מהקישור שקיבלת.
-2. שמים אותו בתיקייה קבועה, למשל `Documents\BengoAutoCategory`, ולא בתיקיית Downloads.
+1. מורידים את **Catego.exe** מהקישור שקיבלת.
+2. שמים אותו בתיקייה קבועה, למשל `Documents\Catego`, ולא בתיקיית Downloads.
 3. מריצים. אם Windows מציג מסך כחול ("Windows protected your PC") → **More info** → **Run anyway**.
    זה קורה כי התוכנה חדשה ועדיין לא חתומה דיגיטלית.
 
