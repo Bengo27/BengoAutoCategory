@@ -11,12 +11,20 @@ public partial class MappingDialog : Window
 
     /// <summary>שם הקטגוריה שהמזהה של קיק שייך לו. אם המשתמש משנה את השם – המזהה כבר לא תקף.</summary>
     private string? _linkedName;
+    private readonly bool _siteMode;
 
-    public MappingDialog(GameMapping? existing, string title, IEnumerable<string> knownCategories)
+    public MappingDialog(GameMapping? existing, string title, IEnumerable<string> knownCategories, bool siteMode = false)
     {
         InitializeComponent();
         Title = title;
         HeaderText.Text = title;
+        _siteMode = siteMode;
+        if (siteMode)
+        {
+            SubtitleText.Text = "כשהדפדפן בחזית וכותרת הלשונית מכילה את המילה הזו, התוכנה תעבור לקטגוריה שתבחר.";
+            ExeLabel.Text = "מילת מפתח בכותרת הלשונית (למשל Stake)";
+            AdvancedExpander.Visibility = Visibility.Collapsed;
+        }
 
         if (existing is not null)
         {
@@ -69,7 +77,7 @@ public partial class MappingDialog : Window
         var exe = ExeBox.Text.Trim();
         var cat = CategoryBox.Text.Trim();
 
-        if (exe.Length == 0) { ShowError("יש להזין שם קובץ הרצה (למשל eldenring.exe)."); return; }
+        if (exe.Length == 0) { ShowError(_siteMode ? "יש להזין מילת מפתח (למשל Stake)." : "יש להזין שם קובץ הרצה (למשל eldenring.exe)."); return; }
         if (cat.Length == 0) { ShowError("יש להזין שם קטגוריה (למשל Elden Ring)."); return; }
 
         Result = new GameMapping

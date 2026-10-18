@@ -8,14 +8,35 @@ public sealed class MappingDatabase
     public int Version { get; set; } = 1;
     public List<GameMapping> Mappings { get; set; } = new();
     public List<string> IgnoreList { get; set; } = new();
+    /// <summary>כללי אתרים (נוסף בגרסה 2 של הקובץ).</summary>
+    public List<SiteRule>? SiteRules { get; set; }
 }
 
 /// <summary>ערכי ברירת מחדל שנכתבים בהפעלה הראשונה.</summary>
 public static class DefaultData
 {
+    public const int CurrentVersion = 2;
+
+    /// <summary>דפדפנים – בהם בודקים את כללי האתרים לפי כותרת הלשונית.</summary>
+    public static readonly HashSet<string> Browsers = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "chrome.exe", "msedge.exe", "firefox.exe", "opera.exe", "brave.exe", "vivaldi.exe", "arc.exe", "librewolf.exe",
+    };
+
+    public const string CasinoCategory = "Slots & Casino";
+
+    public static List<SiteRule> CreateSiteRules() => new()
+    {
+        Site("Stake"), Site("Stake.us"), Site("Roobet"), Site("Rollbit"), Site("Shuffle.com"), Site("Gamdom"),
+        Site("Duelbits"), Site("Rainbet"), Site("BC.Game"), Site("Thrill"), Site("Razed"), Site("Winna"),
+    };
+
+    private static SiteRule Site(string keyword) => new() { Keyword = keyword, Category = CasinoCategory };
+
     public static MappingDatabase CreateMappingDatabase() => new()
     {
-        Version = 1,
+        Version = CurrentVersion,
+        SiteRules = CreateSiteRules(),
         Mappings = new List<GameMapping>
         {
             M("GTA5.exe", "Grand Theft Auto V"),

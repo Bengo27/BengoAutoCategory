@@ -101,6 +101,11 @@
                             <Button Style="{StaticResource PrimaryButton}" Margin="0,0,8,0" Content="הוסף כלל" Command="{Binding AddMappingCommand}" />
                             <Button Content="התעלם מהתוכנה הזו" Command="{Binding IgnoreCurrentCommand}" />
                         </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,14,0,0"
+                                    Visibility="{Binding ShowAddSite, Converter={StaticResource BoolToVis}}">
+                            <Button Content="הוסף כלל לאתר הזה" Command="{Binding AddSiteCommand}"
+                                    ToolTip="למשל: כשהלשונית היא אתר קזינו → Slots &amp; Casino" />
+                        </StackPanel>
                     </StackPanel>
                 </Border>
 

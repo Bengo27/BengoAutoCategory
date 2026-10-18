@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "mappings": [
     {
       "executable": "GTA5.exe",
@@ -131,5 +131,55 @@
     "ApplicationFrameHost.exe",
     "Catego.exe",
     "BengoAutoCategory.exe"
+  ],
+  "siteRules": [
+    {
+      "keyword": "Stake",
+      "category": "Slots \u0026 Casino"
+    },
+    {
+      "keyword": "Stake.us",
+      "category": "Slots \u0026 Casino"
+    },
+    {
+      "keyword": "Roobet",
+      "category": "Slots \u0026 Casino"
+    },
+    {
+      "keyword": "Rollbit",
+      "category": "Slots \u0026 Casino"
+    },
+    {
+      "keyword": "Shuffle.com",
+      "category": "Slots \u0026 Casino"
+    },
+    {
+      "keyword": "Gamdom",
+      "category": "Slots \u0026 Casino"
+    },
+    {
+      "keyword": "Duelbits",
+      "category": "Slots \u0026 Casino"
+    },
+    {
+      "keyword": "Rainbet",
+      "category": "Slots \u0026 Casino"
+    },
+    {
+      "keyword": "BC.Game",
+      "category": "Slots \u0026 Casino"
+    },
+    {
+      "keyword": "Thrill",
+      "category": "Slots \u0026 Casino"
+    },
+    {
+      "keyword": "Razed",
+      "category": "Slots \u0026 Casino"
+    },
+    {
+      "keyword": "Winna",
+      "category": "Slots \u0026 Casino"
+    }
   ]
 }

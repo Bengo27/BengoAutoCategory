@@ -23,6 +23,7 @@ public sealed class DashboardViewModel : ObservableObject, IPageViewModel
     public ICommand ChangeNowCommand { get; }
     public ICommand AddMappingCommand { get; }
     public ICommand IgnoreCurrentCommand { get; }
+    public ICommand AddSiteCommand { get; }
     public ICommand SetCurrentCategoryCommand { get; }
     public ICommand OpenTestModeCommand { get; }
     public ICommand UpdateCommand { get; }
@@ -37,6 +38,7 @@ public sealed class DashboardViewModel : ObservableObject, IPageViewModel
         ChangeNowCommand = new AsyncRelayCommand(() => _s.Engine.ChangeNowAsync(DateTime.Now), () => CanChangeNow);
         AddMappingCommand = new RelayCommand(AddMapping, () => ShowAddMapping);
         IgnoreCurrentCommand = new RelayCommand(IgnoreCurrent, () => ShowAddMapping);
+        AddSiteCommand = new RelayCommand(AddSite, () => ShowAddSite);
         SetCurrentCategoryCommand = new RelayCommand(SetCurrentCategory);
         OpenTestModeCommand = new RelayCommand(openTestMode);
         UpdateCommand = new AsyncRelayCommand(ApplyUpdateAsync, () => _s.Updates.Available is not null && !IsUpdating);
@@ -160,6 +162,9 @@ public sealed class DashboardViewModel : ObservableObject, IPageViewModel
     private string _confidenceHint = "";
     public string ConfidenceHint { get => _confidenceHint; private set => SetProperty(ref _confidenceHint, value); }
 
+    private bool _showAddSite;
+    public bool ShowAddSite { get => _showAddSite; private set => SetProperty(ref _showAddSite, value); }
+
     private bool _showAddMapping;
     public bool ShowAddMapping { get => _showAddMapping; private set => SetProperty(ref _showAddMapping, value); }
 
@@ -216,16 +221,20 @@ public sealed class DashboardViewModel : ObservableObject, IPageViewModel
                 KindText = "משחק מוכר";
                 KindBrush = Res("AccentBrush");
                 DetectedCategory = d.Category ?? "—";
-                ConfidenceHint = d.Confidence >= 100 ? "התאמה מדויקת לקובץ ההרצה" : "קובץ דו-משמעי – זוהה לפי כותרת החלון";
+                ConfidenceHint = d.Site is not null ? $"זוהה לפי הלשונית בדפדפן: \"{d.Site.Keyword}\""
+                    : d.Confidence >= 100 ? "התאמה מדויקת לקובץ ההרצה" : "קובץ דו-משמעי – זוהה לפי כותרת החלון";
                 ShowAddMapping = false;
+                ShowAddSite = false;
                 break;
             case DetectionKind.Ignored:
                 AppTitle = fg.ExecutableName;
                 KindText = "ברשימת ההתעלמות";
                 KindBrush = Res("MutedBrush");
                 DetectedCategory = "—";
-                ConfidenceHint = "תוכנה זו לעולם לא משנה קטגוריה";
+                var isBrowser = _s.Mappings.IsBrowser(fg.ExecutableName);
+                ConfidenceHint = isBrowser ? "דפדפן – הקטגוריה תשתנה רק בלשונית שיש לה כלל אתר" : "תוכנה זו לעולם לא משנה קטגוריה";
                 ShowAddMapping = false;
+                ShowAddSite = isBrowser;
                 break;
             case DetectionKind.Unknown:
                 AppTitle = "תוכנה לא מוכרת";
@@ -234,6 +243,7 @@ public sealed class DashboardViewModel : ObservableObject, IPageViewModel
                 DetectedCategory = "—";
                 ConfidenceHint = "אין כלל לתוכנה הזו. משחק? הוסף כלל.";
                 ShowAddMapping = true;
+                ShowAddSite = false;
                 break;
             default:
                 AppTitle = "—";
@@ -242,6 +252,7 @@ public sealed class DashboardViewModel : ObservableObject, IPageViewModel
                 DetectedCategory = "—";
                 ConfidenceHint = "";
                 ShowAddMapping = false;
+                ShowAddSite = false;
                 break;
         }
 
@@ -312,6 +323,31 @@ public sealed class DashboardViewModel : ObservableObject, IPageViewModel
         if (result is null) return;
         _s.Mappings.AddOrUpdate(result);
         _s.Log.Log(LogLevel.Info, $"נוסף כלל: {result.Executable} → {result.Category}");
+    }
+
+    private void AddSite()
+    {
+        var title = _lastDetection?.Foreground.WindowTitle ?? "";
+        var r = DialogService.EditSite(new SiteRule { Keyword = GuessSiteKeyword(title), Category = "" },
+            "כלל אתר חדש", _s.Mappings.KnownCategories());
+        if (r is null) return;
+        _s.Mappings.AddOrUpdateSite(r);
+        _s.Log.Log(LogLevel.Info, $"נוסף כלל אתר: \"{r.Keyword}\" → {r.Category}");
+    }
+
+    /// <summary>"Stake.com | Sweet Bonanza - Google Chrome" → "Stake.com"</summary>
+    private static string GuessSiteKeyword(string title)
+    {
+        var t = title;
+        foreach (var suffix in new[] { " - Google Chrome", " - Microsoft Edge", " — Mozilla Firefox", " - Mozilla Firefox", " - Brave", " - Opera", " - Vivaldi" })
+        {
+            var i = t.LastIndexOf(suffix, StringComparison.OrdinalIgnoreCase);
+            if (i > 0) { t = t[..i]; break; }
+        }
+        var cut = t.IndexOfAny(new[] { '|', '-', '–', '—', ':' });
+        if (cut > 1) t = t[..cut];
+        t = t.Trim();
+        return t.Length > 40 ? t[..40] : t;
     }
 
     private void IgnoreCurrent()

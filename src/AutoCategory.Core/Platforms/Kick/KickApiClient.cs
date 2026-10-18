@@ -342,6 +342,7 @@ public sealed class KickApiClient
         ["Counter-Strike 2"] = new[] { "Counter-Strike", "CS2" },
         ["League of Legends"] = new[] { "LoL" },
         ["Games + Demos"] = new[] { "Games & Demos", "Games and Demos" },
+        ["Slots & Casino"] = new[] { "Slots and Casino", "Slots", "Casino", "Slots & Casinos" },
         ["Apex Legends"] = new[] { "Apex" },
         ["Rocket League"] = new[] { "Rocket League®" },
     };

@@ -29,6 +29,18 @@ public interface ICategoryMappingService
 
     /// <summary>שומר מזהה קטגוריה של קיק לכל הכללים עם שם הקטגוריה הזה (שעוד אין להם מזהה).</summary>
     int SetKickCategoryId(string categoryName, long kickCategoryId);
+
+    /// <summary>משנה שם קטגוריה בכל הכללים (משחקים ואתרים), ושומר את מזהה קיק.</summary>
+    int RenameCategory(string oldName, string newName, string? kickCategoryId);
+
+    // ── כללי אתרים ──
+    IReadOnlyList<SiteRule> GetSiteRules();
+    /// <summary>הכלל הראשון שמתאים לכותרת (אם הקובץ הוא דפדפן).</summary>
+    SiteRule? FindSiteRule(string executable, string? windowTitle);
+    bool IsBrowser(string executable);
+    void AddOrUpdateSite(SiteRule rule);
+    void ReplaceSite(SiteRule original, SiteRule updated);
+    void RemoveSite(SiteRule rule);
 }
 
 /// <summary>
@@ -61,6 +73,14 @@ public sealed class CategoryMappingService : ICategoryMappingService
                 db.Mappings ??= new();
                 db.IgnoreList ??= new();
                 db.Mappings.RemoveAll(m => string.IsNullOrWhiteSpace(m.Executable) || string.IsNullOrWhiteSpace(m.Category));
+                // שדרוג קובץ ישן: מוסיפים את כללי האתרים של ברירת המחדל (קזינו)
+                if (db.SiteRules is null)
+                {
+                    db.SiteRules = DefaultData.CreateSiteRules();
+                    db.Version = DefaultData.CurrentVersion;
+                    TrySave(db);
+                }
+                db.SiteRules.RemoveAll(r => string.IsNullOrWhiteSpace(r.Keyword) || string.IsNullOrWhiteSpace(r.Category));
                 return db;
             }
         }
@@ -193,26 +213,127 @@ public sealed class CategoryMappingService : ICategoryMappingService
     public IReadOnlyList<string> KnownCategories()
     {
         lock (_lock)
-            return _db.Mappings.Select(m => m.Category).Distinct(StringComparer.OrdinalIgnoreCase)
+            return _db.Mappings.Select(m => m.Category).Concat((_db.SiteRules ?? new()).Select(r => r.Category))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
                 .OrderBy(c => c, StringComparer.OrdinalIgnoreCase).ToList();
     }
 
     public int SetKickCategoryId(string categoryName, long kickCategoryId)
     {
         var count = 0;
+        var id = kickCategoryId.ToString(System.Globalization.CultureInfo.InvariantCulture);
         lock (_lock)
         {
             foreach (var m in _db.Mappings)
             {
                 if (!string.Equals(m.Category.Trim(), categoryName.Trim(), StringComparison.OrdinalIgnoreCase)) continue;
                 if (!string.IsNullOrWhiteSpace(m.KickCategoryId)) continue;
-                m.KickCategoryId = kickCategoryId.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                m.KickCategoryId = id;
+                count++;
+            }
+            foreach (var r in _db.SiteRules ?? new())
+            {
+                if (!string.Equals(r.Category.Trim(), categoryName.Trim(), StringComparison.OrdinalIgnoreCase)) continue;
+                if (!string.IsNullOrWhiteSpace(r.KickCategoryId)) continue;
+                r.KickCategoryId = id;
                 count++;
             }
             if (count > 0) TrySave(_db);
         }
         if (count > 0) Changed?.Invoke();
         return count;
+    }
+
+    public int RenameCategory(string oldName, string newName, string? kickCategoryId)
+    {
+        var count = 0;
+        lock (_lock)
+        {
+            foreach (var m in _db.Mappings.Where(m => string.Equals(m.Category, oldName, StringComparison.OrdinalIgnoreCase)))
+            {
+                m.Category = newName.Trim();
+                if (!string.IsNullOrWhiteSpace(kickCategoryId)) m.KickCategoryId = kickCategoryId;
+                count++;
+            }
+            foreach (var r in (_db.SiteRules ?? new()).Where(r => string.Equals(r.Category, oldName, StringComparison.OrdinalIgnoreCase)))
+            {
+                r.Category = newName.Trim();
+                if (!string.IsNullOrWhiteSpace(kickCategoryId)) r.KickCategoryId = kickCategoryId;
+                count++;
+            }
+            if (count > 0) TrySave(_db);
+        }
+        if (count > 0) Changed?.Invoke();
+        return count;
+    }
+
+    // ───────────── כללי אתרים ─────────────
+
+    public IReadOnlyList<SiteRule> GetSiteRules()
+    {
+        lock (_lock) return (_db.SiteRules ?? new()).Select(r => r.Clone()).ToList();
+    }
+
+    public bool IsBrowser(string executable) => DefaultData.Browsers.Contains(GameMapping.Normalize(executable));
+
+    public SiteRule? FindSiteRule(string executable, string? windowTitle)
+    {
+        if (!IsBrowser(executable) || string.IsNullOrWhiteSpace(windowTitle)) return null;
+        lock (_lock)
+        {
+            // מילת המפתח הארוכה ביותר קודם ("Stake.us" לפני "Stake")
+            return (_db.SiteRules ?? new()).OrderByDescending(r => r.Keyword.Length)
+                .FirstOrDefault(r => r.Matches(windowTitle))?.Clone();
+        }
+    }
+
+    public void AddOrUpdateSite(SiteRule rule)
+    {
+        var c = TidySite(rule);
+        lock (_lock)
+        {
+            _db.SiteRules ??= new();
+            _db.SiteRules.RemoveAll(r => r.SameKeyword(c));
+            _db.SiteRules.Add(c);
+            TrySave(_db);
+        }
+        Changed?.Invoke();
+    }
+
+    public void ReplaceSite(SiteRule original, SiteRule updated)
+    {
+        var c = TidySite(updated);
+        lock (_lock)
+        {
+            _db.SiteRules ??= new();
+            _db.SiteRules.RemoveAll(r => r.SameKeyword(c) && !r.SameKeyword(original));
+            var idx = _db.SiteRules.FindIndex(r => r.SameKeyword(original));
+            if (idx >= 0) _db.SiteRules[idx] = c; else _db.SiteRules.Add(c);
+            TrySave(_db);
+        }
+        Changed?.Invoke();
+    }
+
+    public void RemoveSite(SiteRule rule)
+    {
+        lock (_lock)
+        {
+            _db.SiteRules?.RemoveAll(r => r.SameKeyword(rule));
+            TrySave(_db);
+        }
+        Changed?.Invoke();
+    }
+
+    private static SiteRule TidySite(SiteRule r)
+    {
+        if (string.IsNullOrWhiteSpace(r.Keyword)) throw new ArgumentException("יש להזין מילת מפתח (למשל Stake)");
+        if (string.IsNullOrWhiteSpace(r.Category)) throw new ArgumentException("יש להזין קטגוריה");
+        var c = r.Clone();
+        c.Keyword = c.Keyword.Trim();
+        c.Category = c.Category.Trim();
+        c.KickCategoryId = string.IsNullOrWhiteSpace(c.KickCategoryId) ? null : c.KickCategoryId.Trim();
+        c.Notes = string.IsNullOrWhiteSpace(c.Notes) ? null : c.Notes.Trim();
+        return c;
     }
 
     private static void Validate(GameMapping m)

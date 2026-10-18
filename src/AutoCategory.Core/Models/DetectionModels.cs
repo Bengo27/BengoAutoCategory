@@ -40,6 +40,9 @@ public sealed class DetectionResult
 
     public GameMapping? Mapping { get; init; }
 
+    /// <summary>כלל האתר שהתאים (כשהזיהוי היה לפי לשונית בדפדפן).</summary>
+    public SiteRule? Site { get; init; }
+
     /// <summary>
     /// משחק מוכר שרץ ברקע (גם אם הוא לא בחזית). משמש רק כדי "להחזיק" את הקטגוריה הנוכחית
     /// ולמנוע חזרה ל-Just Chatting – לעולם לא כדי להתחיל שינוי קטגוריה.

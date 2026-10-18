@@ -14,6 +14,7 @@ public sealed class GameDetectionService : IGameDetectionService
 {
     public const int ExactConfidence = 100;
     public const int AmbiguousConfidence = 80;
+    public const int SiteConfidence = 90;
 
     private readonly ICategoryMappingService _mappings;
 
@@ -40,6 +41,28 @@ public sealed class GameDetectionService : IGameDetectionService
                 Category = mapping.Category,
                 Mapping = mapping,
                 Confidence = ambiguous ? AmbiguousConfidence : ExactConfidence,
+                BackgroundCategories = background,
+            };
+        }
+
+        // דפדפן: בודקים את כותרת הלשונית מול כללי האתרים (למשל Stake → Slots & Casino)
+        var site = _mappings.FindSiteRule(exe, foreground.WindowTitle);
+        if (site is not null)
+        {
+            return new DetectionResult
+            {
+                Foreground = foreground,
+                Kind = DetectionKind.Game,
+                Category = site.Category,
+                Mapping = new GameMapping
+                {
+                    Executable = exe,
+                    Category = site.Category,
+                    WindowTitleContains = site.Keyword,
+                    KickCategoryId = site.KickCategoryId,
+                },
+                Site = site,
+                Confidence = SiteConfidence,
                 BackgroundCategories = background,
             };
         }

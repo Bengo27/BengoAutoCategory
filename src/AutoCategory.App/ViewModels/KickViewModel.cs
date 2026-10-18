@@ -221,6 +221,7 @@ public sealed class KickViewModel : ObservableObject, IPageViewModel
             var names = rules
                 .Where(m => string.IsNullOrWhiteSpace(m.KickCategoryId))
                 .Select(m => m.Category)
+                .Concat(_s.Mappings.GetSiteRules().Where(r => string.IsNullOrWhiteSpace(r.KickCategoryId)).Select(r => r.Category))
                 .Append(settings.DefaultCategory)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
@@ -262,13 +263,7 @@ public sealed class KickViewModel : ObservableObject, IPageViewModel
             {
                 foreach (var (ours, kick) in fixes)
                 {
-                    foreach (var m in _s.Mappings.GetMappings().Where(m => string.Equals(m.Category, ours, StringComparison.OrdinalIgnoreCase)))
-                    {
-                        var u = m.Clone();
-                        u.Category = kick.Name;
-                        u.KickCategoryId = kick.Id.ToString(System.Globalization.CultureInfo.InvariantCulture);
-                        _s.Mappings.Replace(m, u);
-                    }
+                    _s.Mappings.RenameCategory(ours, kick.Name, kick.Id.ToString(System.Globalization.CultureInfo.InvariantCulture));
                     if (string.Equals(_s.Engine.CurrentCategory, ours, StringComparison.OrdinalIgnoreCase))
                         _s.Engine.SetCurrentCategoryManually(kick.Name);
                     if (string.Equals(_s.Settings.Current.DefaultCategory, ours, StringComparison.OrdinalIgnoreCase))

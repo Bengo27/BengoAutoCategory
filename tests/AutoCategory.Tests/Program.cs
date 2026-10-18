@@ -503,6 +503,60 @@ static class Tests
         Assert.True(e.Mappings.FindMapping("Other.exe", "") is null, "disabled: not added");
     }
 
+    public static void T32_SiteRules_CasinoInBrowser()
+    {
+        using var e = new Env();
+        var r = e.Fg("chrome.exe", "Stake.com | Sweet Bonanza - Google Chrome");
+        Assert.Equal(DetectionKind.Game, r.Kind, "casino tab detected");
+        Assert.Equal("Slots & Casino", r.Category, "category");
+        Assert.Equal(90, r.Confidence, "site confidence");
+        Assert.Equal("Stake", r.Site?.Keyword, "matched keyword");
+
+        Assert.Equal("Stake.us", e.Fg("msedge.exe", "Stake.us - Social Casino - Microsoft Edge").Site?.Keyword, "longest keyword wins");
+        Assert.Equal(DetectionKind.Ignored, e.Fg("chrome.exe", "YouTube - Google Chrome").Kind, "normal tab stays ignored");
+        Assert.Equal(DetectionKind.Ignored, e.Fg("chrome.exe", "A common mistake - Google Chrome").Kind, "whole word only (mistake)");
+        Assert.True(e.Fg("notepad.exe", "Stake notes.txt - Notepad").Site is null, "non-browser never uses site rules");
+    }
+
+    public static async Task T33_SiteRules_TimerAndAltTab()
+    {
+        using var e = new Env();
+        await e.Run("chrome.exe", 21, "Roobet | Gates of Olympus - Google Chrome");
+        Assert.Equal(("Just Chatting", "Slots & Casino"), e.Changer.Calls.Single(), "changed after 20s on casino tab");
+        // מעבר ללשונית רגילה בדפדפן לא מחזיר ל-Just Chatting מיד ולא משנה כלום
+        await e.Run("chrome.exe", 60, "Google - Google Chrome");
+        Assert.Equal(1, e.Changer.Calls.Count, "normal tab is transparent");
+    }
+
+    public static void T34_SiteRules_CrudAndMigration()
+    {
+        using var e = new Env();
+        e.Mappings.AddOrUpdateSite(new SiteRule { Keyword = "poki", Category = "Browser Games" });
+        Assert.Equal("Browser Games", new CategoryMappingService(e.Dir).FindSiteRule("firefox.exe", "Poki - Free Online Games — Mozilla Firefox")?.Category, "persisted");
+        var rule = e.Mappings.GetSiteRules().First(r => r.Keyword == "poki");
+        e.Mappings.RemoveSite(rule);
+        Assert.True(new CategoryMappingService(e.Dir).FindSiteRule("firefox.exe", "Poki - Mozilla Firefox") is null, "deleted");
+
+        // קובץ ישן (גרסה 1, בלי siteRules) מקבל את כללי הקזינו אוטומטית
+        var dir = Path.Combine(Path.GetTempPath(), "ac-mig-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        File.WriteAllText(Path.Combine(dir, "game_mappings.json"),
+            "{\"version\":1,\"mappings\":[{\"executable\":\"cs2.exe\",\"category\":\"Counter-Strike 2\"}],\"ignoreList\":[\"chrome.exe\"]}");
+        var migrated = new CategoryMappingService(dir);
+        Assert.Equal("Slots & Casino", migrated.FindSiteRule("chrome.exe", "Stake - Google Chrome")?.Category, "migration adds casino rules");
+        Assert.Equal("Counter-Strike 2", migrated.FindMapping("cs2.exe", "")?.Category, "old rules kept");
+        Assert.True(File.ReadAllText(Path.Combine(dir, "game_mappings.json")).Contains("siteRules"), "migration saved");
+        Directory.Delete(dir, true);
+    }
+
+    public static void T35_RenameCategory_AllRuleTypes()
+    {
+        using var e = new Env();
+        var n = e.Mappings.RenameCategory("Slots & Casino", "Slots & Casinos", "123");
+        Assert.True(n >= 10, "site rules renamed: " + n);
+        Assert.Equal("123", e.Mappings.FindSiteRule("chrome.exe", "Stake - Chrome")?.KickCategoryId, "kick id saved on site rule");
+    }
+
     public static void T28_ExportDefaultMappingsFile()
     {
         // מייצר את קובץ ה-JSON שמצורף לפרויקט (Data/game_mappings.json)
