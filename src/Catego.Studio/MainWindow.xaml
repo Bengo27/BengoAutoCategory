@@ -1,0 +1,64 @@
+<Window x:Class="Catego.Studio.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Catego Studio"
+        Width="1080" Height="740" MinWidth="880" MinHeight="580"
+        WindowStartupLocation="CenterScreen"
+        FlowDirection="RightToLeft"
+        Background="{StaticResource BgBrush}"
+        Foreground="{StaticResource TextBrush}"
+        FontFamily="{StaticResource UiFont}"
+        Icon="Assets/app.ico"
+        UseLayoutRounding="True"
+        TextOptions.TextFormattingMode="Display">
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="230" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <!-- ═══════ סרגל צד ═══════ -->
+        <Border Background="{StaticResource SidebarBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,1,0">
+            <DockPanel LastChildFill="False">
+                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="20,22,20,26">
+                    <Image Source="Assets/logo.png" Width="36" Height="36" VerticalAlignment="Center" />
+                    <StackPanel Margin="10,0,0,0" VerticalAlignment="Center" FlowDirection="LeftToRight">
+                        <TextBlock FontSize="22" FontWeight="Black">
+                            <Run Text="catego" Foreground="{StaticResource TextBrush}" /><Run Text=" studio" Foreground="{StaticResource AccentBrush}" FontWeight="SemiBold" />
+                        </TextBlock>
+                        <TextBlock Text="כלים לסטרימרים" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}" FlowDirection="RightToLeft" />
+                    </StackPanel>
+                </StackPanel>
+
+                <StackPanel DockPanel.Dock="Top">
+                    <RadioButton x:Name="NavTts" Style="{StaticResource NavItem}" GroupName="Nav" IsChecked="True"
+                                 Content="הקראה (TTS)" Checked="Nav_Checked" />
+                    <RadioButton x:Name="NavNowPlaying" Style="{StaticResource NavItem}" GroupName="Nav"
+                                 Content="Now Playing · בקרוב" Checked="Nav_Checked" />
+                    <RadioButton x:Name="NavKick" Style="{StaticResource NavItem}" GroupName="Nav"
+                                 Content="חיבור לקיק" Checked="Nav_Checked" />
+                    <RadioButton x:Name="NavLog" Style="{StaticResource NavItem}" GroupName="Nav"
+                                 Content="יומן פעילות" Checked="Nav_Checked" />
+                    <RadioButton x:Name="NavSettings" Style="{StaticResource NavItem}" GroupName="Nav"
+                                 Content="הגדרות" Checked="Nav_Checked" />
+                </StackPanel>
+
+                <TextBlock x:Name="VersionText" DockPanel.Dock="Bottom" Style="{StaticResource Muted}" Margin="20,0,20,20" />
+            </DockPanel>
+        </Border>
+
+        <!-- ═══════ תוכן ═══════ -->
+        <DockPanel Grid.Column="1">
+            <Border x:Name="UpdateBanner" DockPanel.Dock="Top" Background="#0F2E2B" BorderBrush="{StaticResource AccentBrush}"
+                    BorderThickness="0,0,0,1" Padding="20,10"
+                    Visibility="{Binding Visible, Converter={StaticResource BoolToVis}}">
+                <DockPanel>
+                    <Button DockPanel.Dock="Right" Style="{StaticResource PrimaryButton}" Content="עדכן עכשיו" Command="{Binding UpdateCommand}" />
+                    <TextBlock Text="{Binding Text}" VerticalAlignment="Center" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                </DockPanel>
+            </Border>
+            <ContentControl x:Name="PageHost" Focusable="False" />
+        </DockPanel>
+    </Grid>
+</Window>

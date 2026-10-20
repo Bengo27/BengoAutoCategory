@@ -5,6 +5,13 @@ const env = { KICK_CLIENT_ID: "cid", KICK_CLIENT_SECRET: "super-secret" };
 let lastKickCall = null;
 
 globalThis.fetch = async (url, init) => {
+  if (String(url).startsWith("https://api.github.com/")) {
+    return new Response(JSON.stringify([
+      { tag_name: "v0.4.1", draft: false, assets: [{ name: "Catego.exe", browser_download_url: "https://gh/catego.exe" }] },
+      { tag_name: "studio-v0.2.0", draft: true, assets: [{ name: "CategoStudio.exe", browser_download_url: "https://gh/draft.exe" }] },
+      { tag_name: "studio-v0.1.0", draft: false, assets: [{ name: "CategoStudio.exe", browser_download_url: "https://gh/studio010.exe" }] },
+    ]), { status: 200, headers: { "Content-Type": "application/json" } });
+  }
   if (String(url).includes("tts.speech.microsoft.com")) {
     lastKickCall = { url, init, form: new URLSearchParams() };
     if (init.headers["Ocp-Apim-Subscription-Key"] !== "az-key") return new Response("", { status: 401 });
@@ -53,6 +60,10 @@ check(r.status === 404, "GET /token not allowed");
 
 r = await worker.fetch(req("/token", "POST", { code: "c", code_verifier: "v", redirect_uri: "http://localhost:47653/callback" }), {});
 check(r.status === 500, "not configured");
+
+// ── Studio download link ──
+r = await worker.fetch(req("/download/studio", "GET"), env);
+check(r.status === 302 && r.headers.get("Location") === "https://gh/studio010.exe", "download/studio redirects to newest published Studio exe");
 
 // ── TTS ──
 const ttsEnv = { ...env, AZURE_SPEECH_KEY: "az-key", AZURE_SPEECH_REGION: "westeurope" };

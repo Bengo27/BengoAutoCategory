@@ -28,6 +28,8 @@ public sealed class KickPlatform : IStreamingPlatform, IKickRewardsApi
     public int CallbackPort { get; init; } = KickEndpoints.CallbackPort;
     public string RedirectUri { get; init; } = KickEndpoints.RedirectUri;
     public TimeSpan LoginTimeout { get; init; } = TimeSpan.FromMinutes(5);
+    /// <summary>ההרשאות שמבקשים מקיק בהתחברות (שונה בין Catego ל-Studio).</summary>
+    public string Scopes { get; init; } = KickEndpoints.Scopes;
 
     public KickPlatform(KickAuthStore store, KickApiClient api, ILoggingService log, Action<string> openBrowser,
         Func<DateTime>? utcNow = null)
@@ -89,7 +91,7 @@ public sealed class KickPlatform : IStreamingPlatform, IKickRewardsApi
 
         var pkce = KickApiClient.CreatePkce();
         var state = KickApiClient.CreateState();
-        var url = KickApiClient.BuildAuthorizeUrl(_api.EffectiveClientId!, RedirectUri, KickEndpoints.Scopes, state, pkce.Challenge);
+        var url = KickApiClient.BuildAuthorizeUrl(_api.EffectiveClientId!, RedirectUri, Scopes, state, pkce.Challenge);
 
         using var listener = new LoopbackCallbackListener(CallbackPort);
         listener.Start();

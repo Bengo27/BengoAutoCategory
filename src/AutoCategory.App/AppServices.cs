@@ -6,7 +6,6 @@ using AutoCategory.Core.Models;
 using AutoCategory.Core.Platforms;
 using AutoCategory.Core.Platforms.Kick;
 using AutoCategory.Core.Services;
-using AutoCategory.Core.Tts;
 
 namespace AutoCategory.App;
 
@@ -28,8 +27,6 @@ public sealed class AppServices : IDisposable
     public KickSyncService KickSync { get; }
     public AppConfig Config { get; }
     public UpdateService Updates { get; }
-    public TtsService Tts { get; }
-    public TtsWidgetServer TtsWidget { get; }
 
     /// <summary>שינויים אמיתיים בקיק: מחובר + "שינוי אמיתי" מופעל בהגדרות.</summary>
     public bool IsLive => Kick.IsConnected && Settings.Current.KickLiveMode;
@@ -85,12 +82,6 @@ public sealed class AppServices : IDisposable
         KickSync = new KickSyncService(Kick, Engine, log) { CanWrite = () => IsLive };
         Kick.ConnectionChanged += () => { if (Kick.IsConnected) _ = KickSync.SyncNowAsync(); };
 
-        // ── הקראה (TTS) ──
-        var ttsHub = new TtsWidgetHub();
-        TtsWidget = new TtsWidgetServer(ttsHub, log);
-        var ttsEngine = new FallbackTtsEngine(new CloudTtsEngine(_http, () => Config.KickBrokerUrl), new SapiTtsEngine(), log);
-        Tts = new TtsService(Kick, ttsEngine, new MediaTtsPlayer(), ttsHub, new TtsSettingsStore(DataDirectory, log), log);
-
         Settings.Changed += s => log.SaveToFile = s.SaveLogsToFile;
         Mappings.Changed += () => Coordinator.RequestImmediateDetection();
     }
@@ -100,8 +91,6 @@ public sealed class AppServices : IDisposable
         Coordinator.Start();
         KickSync.Start();
         Updates.StartPeriodicChecks();
-        TtsWidget.Start();
-        Tts.Start();
         if (Kick.IsConnected)
             Log.Log(LogLevel.Info, $"מחובר לקיק בתור {Kick.AccountName} ({(Settings.Current.KickLiveMode ? "שינוי אמיתי" : "סימולציה")})");
     }
@@ -136,8 +125,6 @@ public sealed class AppServices : IDisposable
 
     public void Dispose()
     {
-        Tts.Dispose();
-        TtsWidget.Dispose();
         KickSync.Dispose();
         Coordinator.Dispose();
     }

@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
-using System.Text.Json;
 using AutoCategory.Core.Models;
 using AutoCategory.Core.Services;
 
@@ -27,11 +26,18 @@ public sealed class UpdateService
 
     public bool Enabled => _config.HasUpdates;
 
-    public UpdateService(HttpClient http, AppConfig config, ILoggingService log)
+    private readonly string _tagPrefix;
+    private readonly string _assetName;
+
+    /// <param name="tagPrefix">תחילית התגית של התוכנה הזו ב-GitHub ("v" ל-Catego, "studio-v" ל-Studio).</param>
+    /// <param name="assetName">שם קובץ ה-exe ב-Release.</param>
+    public UpdateService(HttpClient http, AppConfig config, ILoggingService log, string tagPrefix = "v", string assetName = "Catego.exe")
     {
         _http = http;
         _config = config;
         _log = log;
+        _tagPrefix = tagPrefix;
+        _assetName = assetName;
     }
 
     /// <summary>מוחק את הגרסה הישנה שנשארה מעדכון קודם.</summary>
@@ -71,7 +77,8 @@ public sealed class UpdateService
         if (!Enabled) return null;
         try
         {
-            using var req = new HttpRequestMessage(HttpMethod.Get, $"https://api.github.com/repos/{_config.GitHubRepo}/releases/latest");
+            // כל ה-Releases (לא רק "latest") – כי באותו מאגר יש גם את Catego וגם את Catego Studio
+            using var req = new HttpRequestMessage(HttpMethod.Get, $"https://api.github.com/repos/{_config.GitHubRepo}/releases?per_page=30");
             req.Headers.Accept.ParseAdd("application/vnd.github+json");
             using var res = await _http.SendAsync(req).ConfigureAwait(false);
             if (!res.IsSuccessStatusCode)
@@ -79,35 +86,14 @@ public sealed class UpdateService
                 if (!quiet) _log.Log(LogLevel.Warning, "בדיקת עדכונים נכשלה", $"GitHub {(int)res.StatusCode}");
                 return null;
             }
-            using var doc = JsonDocument.Parse(await res.Content.ReadAsStringAsync().ConfigureAwait(false));
-            var root = doc.RootElement;
-            var tag = root.TryGetProperty("tag_name", out var t) ? t.GetString() ?? "" : "";
-            if (!UpdateVersion.IsNewer(tag, CurrentVersion))
+            var pick = UpdateVersion.PickRelease(await res.Content.ReadAsStringAsync().ConfigureAwait(false), _tagPrefix, _assetName);
+            if (pick is null || !UpdateVersion.IsNewer(pick.Version.ToString(3), CurrentVersion))
             {
                 if (!quiet) _log.Log(LogLevel.Info, $"אין עדכון חדש (הגרסה שלך: {CurrentVersion.ToString(3)})");
                 return null;
             }
-
-            string? url = null;
-            long size = 0;
-            if (root.TryGetProperty("assets", out var assets))
-            {
-                foreach (var a in assets.EnumerateArray())
-                {
-                    var name = a.GetProperty("name").GetString() ?? "";
-                    if (!name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) continue;
-                    url = a.GetProperty("browser_download_url").GetString();
-                    size = a.TryGetProperty("size", out var sz) ? sz.GetInt64() : 0;
-                    break;
-                }
-            }
-            if (url is null) return null;
-
-            var info = new UpdateInfo(tag,
-                root.TryGetProperty("name", out var n) ? n.GetString() ?? tag : tag,
-                root.TryGetProperty("body", out var b) ? b.GetString() ?? "" : "",
-                url, size,
-                root.TryGetProperty("html_url", out var h) ? h.GetString() ?? "" : "");
+            var tag = pick.Tag;
+            var info = new UpdateInfo(tag, pick.Name, pick.Notes, pick.DownloadUrl, pick.Size, pick.PageUrl);
 
             var isNew = Available?.Tag != info.Tag;
             Available = info;
@@ -131,10 +117,10 @@ public sealed class UpdateService
         var exe = Environment.ProcessPath ?? throw new InvalidOperationException("לא ידוע איפה התוכנה מותקנת.");
         if (!exe.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ||
             Path.GetFileName(exe).Equals("dotnet.exe", StringComparison.OrdinalIgnoreCase))
-            throw new InvalidOperationException("עדכון אוטומטי עובד רק בגרסה המהודרת (Catego.exe).");
+            throw new InvalidOperationException($"עדכון אוטומטי עובד רק בגרסה המהודרת ({_assetName}).");
 
         var dir = Path.GetDirectoryName(exe)!;
-        var tmp = Path.Combine(dir, "Catego.new.exe");
+        var tmp = Path.Combine(dir, Path.GetFileNameWithoutExtension(exe) + ".new.exe");
 
         _log.Log(LogLevel.Info, $"מוריד את גרסה {info.Tag}…");
         using (var res = await _http.GetAsync(info.DownloadUrl, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false))

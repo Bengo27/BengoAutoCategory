@@ -7,6 +7,7 @@ var runner = new TestRunner();
 await runner.RunAllAsync(typeof(Tests));
 await runner.RunAllAsync(typeof(KickTests));
 await runner.RunAllAsync(typeof(TtsTests));
+await runner.RunAllAsync(typeof(UpdateTests));
 runner.PrintSummary();
 return runner.Failed == 0 ? 0 : 1;
 

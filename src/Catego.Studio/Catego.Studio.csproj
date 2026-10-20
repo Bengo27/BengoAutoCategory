@@ -1,0 +1,47 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <!-- WinForms משמש רק לאייקון במגש המערכת (NotifyIcon) -->
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>Catego.Studio</RootNamespace>
+    <AssemblyName>CategoStudio</AssemblyName>
+    <ApplicationIcon>Assets\app.ico</ApplicationIcon>
+    <Product>Catego Studio</Product>
+    <Version>0.1.0</Version>
+    <Description>כלים לסטרימרים: הקראת הודעות (TTS), Now Playing ועוד</Description>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AutoCategory.Core\AutoCategory.Core.csproj" />
+  </ItemGroup>
+
+  <!-- קבצים משותפים עם Catego (אותו קוד, בלי להעתיק) -->
+  <ItemGroup>
+    <Compile Include="..\AutoCategory.App\ViewModels\Mvvm.cs" Link="Shared\Mvvm.cs" />
+    <Compile Include="..\AutoCategory.App\Platform\AppConfigLoader.cs" Link="Shared\AppConfigLoader.cs" />
+    <Compile Include="..\AutoCategory.App\Platform\DpapiSecretProtector.cs" Link="Shared\DpapiSecretProtector.cs" />
+    <Compile Include="..\AutoCategory.App\Platform\StartupRegistration.cs" Link="Shared\StartupRegistration.cs" />
+    <Compile Include="..\AutoCategory.App\Platform\UpdateService.cs" Link="Shared\UpdateService.cs" />
+    <Page Include="..\AutoCategory.App\Themes\Dark.xaml" Link="Themes\Dark.xaml" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="..\AutoCategory.App\app_config.json" Link="app_config.json" LogicalName="app_config.json" />
+    <Resource Include="Assets\app.ico" />
+    <Resource Include="Assets\logo.png" />
+  </ItemGroup>
+
+</Project>

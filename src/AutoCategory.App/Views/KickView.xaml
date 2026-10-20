@@ -112,7 +112,7 @@
                         <TextBox Text="{Binding RedirectUri, Mode=OneWay}" IsReadOnly="True" FlowDirection="LeftToRight" FontFamily="Consolas" />
                     </DockPanel>
                     <TextBlock Style="{StaticResource Muted}" FontSize="13" LineHeight="22">
-                        5. בהרשאות (Scopes) סמן: user:read, channel:read, channel:write, channel:rewards:read, channel:rewards:write.<LineBreak />
+                        5. אם יש בחירת הרשאות (Scopes) – סמן לפחות: user:read, channel:read, channel:write.<LineBreak />
                         6. אם מבקשים Webhook – לא צריך, אפשר להשאיר כבוי/ריק.<LineBreak />
                         7. שמור. קיק יציג Client ID ו-Client Secret – העתק אותם לשלב 2.
                     </TextBlock>

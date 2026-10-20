@@ -6,7 +6,9 @@ using System.Windows.Input;
 using AutoCategory.Core.Platforms.Kick;
 using AutoCategory.Core.Tts;
 
-namespace AutoCategory.App.ViewModels;
+using AutoCategory.App.ViewModels;
+
+namespace Catego.Studio.ViewModels;
 
 /// <summary>שורה בתור ההקראות.</summary>
 public sealed class TtsItemRow
@@ -27,7 +29,7 @@ public sealed class TtsItemRow
 /// <summary>עמוד "הקראה (TTS)".</summary>
 public sealed class TtsViewModel : ObservableObject, IPageViewModel
 {
-    private readonly AppServices _s;
+    private readonly StudioServices _s;
     private TtsService Tts => _s.Tts;
 
     public ObservableCollection<TtsItemRow> Queue { get; } = new();
@@ -47,7 +49,7 @@ public sealed class TtsViewModel : ObservableObject, IPageViewModel
 
     private readonly Action _goToKick;
 
-    public TtsViewModel(AppServices services, Action goToKick)
+    public TtsViewModel(StudioServices services, Action goToKick)
     {
         _s = services;
         _goToKick = goToKick;
@@ -68,7 +70,7 @@ public sealed class TtsViewModel : ObservableObject, IPageViewModel
         {
             try { Clipboard.SetText(WidgetUrl); Message = "הכתובת הועתקה ✓ – הדבק אותה ב-OBS ב-Browser Source"; } catch { }
         });
-        OpenWidgetPreviewCommand = new RelayCommand(() => AppServices.OpenInBrowser(WidgetUrl + "?demo=1"));
+        OpenWidgetPreviewCommand = new RelayCommand(() => StudioServices.OpenInBrowser(WidgetUrl + "?demo=1"));
         GoToKickCommand = new RelayCommand(() => _goToKick());
         ResetBannedWordsCommand = new RelayCommand(() => BannedWords = string.Join(Environment.NewLine, TtsFilter.DefaultBannedWords));
 

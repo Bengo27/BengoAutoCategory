@@ -1,0 +1,52 @@
+# פרסום גרסה של Catego Studio: GitHub → Actions → "Release Studio" → Run workflow → מספר גרסה (למשל 0.1.0)
+# התגית היא studio-v<גרסה>, כדי ש-Catego ו-Studio לא יתבלבלו בעדכונים.
+# קישור הורדה קבוע: https://bengoautocategory.bensar2.workers.dev/download/studio
+name: Release Studio
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "מספר גרסה של Studio (למשל 0.1.0)"
+        required: true
+      notes:
+        description: "מה חדש בגרסה (יוצג לסטרימרים)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Check version format
+        shell: pwsh
+        run: |
+          if ("${{ inputs.version }}" -notmatch '^\d+\.\d+\.\d+$') { throw "Version must look like 0.1.0" }
+
+      - name: Run tests
+        run: dotnet run --project tests/AutoCategory.Tests -c Release
+
+      - name: Build exe
+        run: >
+          dotnet publish src/Catego.Studio/Catego.Studio.csproj -c Release -r win-x64 --self-contained true
+          -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true
+          -p:Version=${{ inputs.version }} -o publish-studio
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: studio-v${{ inputs.version }}
+          name: Catego Studio ${{ inputs.version }}
+          body: ${{ inputs.notes }}
+          files: publish-studio/CategoStudio.exe
+          # חשוב: "Latest" נשאר של Catego, כדי שהקישור releases/latest/download/Catego.exe ימשיך לעבוד
+          make_latest: false

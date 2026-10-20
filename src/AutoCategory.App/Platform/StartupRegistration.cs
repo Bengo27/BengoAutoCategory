@@ -6,7 +6,8 @@ namespace AutoCategory.App.Platform;
 public static class StartupRegistration
 {
     private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
-    private const string ValueName = "BengoAutoCategory";
+    /// <summary>השם ברשימת ההפעלה של Windows (שונה לכל תוכנה).</summary>
+    public static string ValueName { get; set; } = "BengoAutoCategory";
 
     public static void Apply(bool enabled)
     {

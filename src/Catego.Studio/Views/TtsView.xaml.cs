@@ -1,6 +1,6 @@
 using System.Windows.Controls;
 
-namespace AutoCategory.App.Views;
+namespace Catego.Studio.Views;
 
 public partial class TtsView : UserControl
 {

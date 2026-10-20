@@ -1,4 +1,4 @@
-<UserControl x:Class="AutoCategory.App.Views.TtsView"
+<UserControl x:Class="Catego.Studio.Views.TtsView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 

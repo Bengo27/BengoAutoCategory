@@ -25,7 +25,6 @@ public partial class MainWindow : Window
             [nameof(NavDashboard)] = () => new DashboardView { DataContext = Dashboard },
             [nameof(NavRules)] = () => new CategoryRulesView { DataContext = new CategoryRulesViewModel(services) },
             [nameof(NavSites)] = () => new SiteRulesView { DataContext = new SiteRulesViewModel(services) },
-            [nameof(NavTts)] = () => new TtsView { DataContext = new TtsViewModel(services, () => NavKick.IsChecked = true) },
             [nameof(NavIgnore)] = () => new IgnoreListView { DataContext = new IgnoreListViewModel(services) },
             [nameof(NavLog)] = () => new ActivityLogView { DataContext = new ActivityLogViewModel(services) },
             [nameof(NavKick)] = () => new KickView { DataContext = new KickViewModel(services) },

@@ -268,7 +268,8 @@ static class TtsTests
         {
             Assert.True(ex.Message.Contains("התחבר"), "asks to reconnect");
         }
-        Assert.True(KickEndpoints.Scopes.Contains("channel:rewards:write"), "new logins ask for rewards");
+        Assert.True(KickEndpoints.StudioScopes.Contains("channel:rewards:write"), "Studio logins ask for rewards");
+        Assert.True(!KickEndpoints.Scopes.Contains("rewards"), "Catego does not ask for rewards");
     }
 
     public static async Task T51_FallbackEngine_UsesWindowsVoiceWhenCloudFails()
@@ -342,6 +343,33 @@ static class TtsTests
         await e.Tts.PollOnceAsync(default);
         await e.Tts.PlayNextAsync(default);
         Assert.Equal(1, e.Player.Played, "no widget open → played in app instead of getting stuck");
+    }
+}
+
+static class UpdateTests
+{
+    private const string Releases = """
+    [
+      {"tag_name":"studio-v0.2.0","name":"Catego Studio 0.2.0","draft":false,"prerelease":false,"body":"s","html_url":"h2",
+       "assets":[{"name":"CategoStudio.exe","browser_download_url":"https://x/studio020.exe","size":5000000}]},
+      {"tag_name":"v0.5.0","name":"Catego 0.5.0","draft":true,"prerelease":false,"assets":[{"name":"Catego.exe","browser_download_url":"https://x/draft.exe","size":1}]},
+      {"tag_name":"v0.4.1","name":"Catego 0.4.1","draft":false,"prerelease":false,"body":"fix","html_url":"h1",
+       "assets":[{"name":"Catego.exe","browser_download_url":"https://x/catego041.exe","size":4000000}]},
+      {"tag_name":"v0.4.0","name":"Catego 0.4.0","draft":false,"prerelease":false,
+       "assets":[{"name":"Catego.exe","browser_download_url":"https://x/catego040.exe","size":4000000}]}
+    ]
+    """;
+
+    public static void T55_Updates_EachAppGetsOnlyItsOwnRelease()
+    {
+        var catego = UpdateVersion.PickRelease(Releases, "v", "Catego.exe");
+        Assert.Equal("v0.4.1", catego?.Tag, "Catego ignores Studio + drafts");
+        Assert.Equal("https://x/catego041.exe", catego?.DownloadUrl, "catego url");
+
+        var studio = UpdateVersion.PickRelease(Releases, "studio-v", "CategoStudio.exe");
+        Assert.Equal("studio-v0.2.0", studio?.Tag, "Studio tag");
+        Assert.Equal(new Version(0, 2, 0, 0), studio?.Version, "Studio version parsed without prefix");
+        Assert.True(UpdateVersion.PickRelease("[]", "v", "Catego.exe") is null, "empty list");
     }
 }
 

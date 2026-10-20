@@ -17,5 +17,7 @@ jobs:
       - run: dotnet run --project tests/AutoCategory.Tests -c Release
       - name: Build app (check it compiles)
         run: dotnet build src/AutoCategory.App/AutoCategory.App.csproj -c Release
+      - name: Build Studio (check it compiles)
+        run: dotnet build src/Catego.Studio/Catego.Studio.csproj -c Release
       - name: Broker tests
         run: node server/test-worker.mjs

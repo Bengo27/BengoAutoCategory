@@ -7,6 +7,7 @@
  *   POST /refresh  { refresh_token }                      -> Kick refresh_token grant
  *   POST /tts      { text, voice, rate }                  -> MP3 audio (Azure neural voice, Hebrew)
  *   GET  /health                                          -> { ok, client_id, tts }
+ *   GET  /download/studio                                 -> redirect to the newest CategoStudio.exe
  *
  * Required secrets (Cloudflare dashboard -> Worker -> Settings -> Variables and Secrets):
  *   KICK_CLIENT_ID      the app's Client ID
@@ -43,6 +44,10 @@ export default {
         client_id: env.KICK_CLIENT_ID || null,
         tts: Boolean(env.AZURE_SPEECH_KEY && env.AZURE_SPEECH_REGION),
       });
+    }
+
+    if (request.method === "GET" && url.pathname === "/download/studio") {
+      return downloadStudio(env);
     }
 
     if (request.method === "POST" && url.pathname === "/tts") {
@@ -110,6 +115,28 @@ export default {
     });
   },
 };
+
+// Catego Studio releases are tagged studio-v* and are never "Latest" (that stays Catego),
+// so this gives streamers one permanent download link.
+async function downloadStudio(env) {
+  const repo = env.GITHUB_REPO || "Bengo27/BengoAutoCategory";
+  let res;
+  try {
+    res = await fetch(`https://api.github.com/repos/${repo}/releases?per_page=30`, {
+      headers: { "User-Agent": "catego-broker", "Accept": "application/vnd.github+json" },
+    });
+  } catch {
+    return json(502, { error: "github_unreachable" });
+  }
+  if (!res.ok) return json(502, { error: "github_failed", status: res.status });
+  const releases = await res.json();
+  for (const r of releases) {
+    if (r.draft || r.prerelease || !String(r.tag_name || "").startsWith("studio-v")) continue;
+    const asset = (r.assets || []).find((a) => a.name === "CategoStudio.exe");
+    if (asset) return Response.redirect(asset.browser_download_url, 302);
+  }
+  return json(404, { error: "no_studio_release" });
+}
 
 async function tts(request, env) {
   if (!env.AZURE_SPEECH_KEY || !env.AZURE_SPEECH_REGION) {

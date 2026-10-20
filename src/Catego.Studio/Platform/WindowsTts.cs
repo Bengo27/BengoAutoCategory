@@ -4,7 +4,7 @@ using System.Windows;
 using System.Windows.Media;
 using AutoCategory.Core.Tts;
 
-namespace AutoCategory.App.Platform;
+namespace Catego.Studio.Platform;
 
 /// <summary>
 /// הקול המובנה של Windows (Asaf) דרך SAPI – בלי אינטרנט ובלי חבילות.

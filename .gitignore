@@ -7,3 +7,4 @@ publish/
 kick_auth.json
 *.corrupt-*
 server/.dev.vars
+publish-studio/

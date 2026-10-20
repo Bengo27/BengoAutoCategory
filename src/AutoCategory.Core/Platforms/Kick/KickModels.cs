@@ -17,8 +17,11 @@ public static class KickEndpoints
     public const string Rewards = ApiHost + "/public/v1/channels/rewards";
     public const string Redemptions = Rewards + "/redemptions";
 
-    /// <summary>ההרשאות שהתוכנה מבקשת: משתמש, ערוץ (קטגוריה), ופרסי נקודות (הקראה).</summary>
-    public const string Scopes = "user:read channel:read channel:write channel:rewards:read channel:rewards:write";
+    /// <summary>ההרשאות של Catego: לקרוא משתמש, לקרוא ולעדכן את הערוץ (קטגוריה).</summary>
+    public const string Scopes = "user:read channel:read channel:write";
+
+    /// <summary>ההרשאות של Catego Studio: משתמש, ערוץ, ופרסי נקודות (הקראה).</summary>
+    public const string StudioScopes = "user:read channel:read channel:rewards:read channel:rewards:write";
 
     public const string RewardsScope = "channel:rewards:write";
 
