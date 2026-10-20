@@ -301,6 +301,12 @@ await test("Edge mode: tab speaks for free, OBS shows the card", async () => {
   await call("skip", {});
   check(tab.last("stop")?.id === "E3" && kick.accepted.includes("E3"), "skip stops the tab");
   check((await call("state")).json.speakers === 1, "state reports speaker tabs");
+  // לשונית מקריאה חדשה מחליפה את הקודמת
+  globalThis.WebSocketPair = class { constructor() { this[0] = new FakeSocket(); this[1] = new FakeSocket(); } };
+  o.state.acceptWebSocket = (ws, tags) => o.state.sockets.push({ role: tags[0], ws });
+  const req = new Request("https://channel/ws?role=speaker", { headers: { Upgrade: "websocket" } });
+  try { o.obj.acceptSocket(req, new URL(req.url)); } catch {} // Node לא יודע ליצור תשובת 101
+  check(tab.readyState === 3 && o.obj.sockets("speaker").length === 1, "new speaker tab replaces the old one");
 });
 
 await test("token refresh and expired login", async () => {

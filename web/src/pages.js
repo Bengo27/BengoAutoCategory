@@ -201,17 +201,22 @@ document.querySelectorAll("#modes .chip").forEach(c=>c.onclick=async()=>{const m
 // ── הקראה מהלשונית (Web Speech של הדפדפן – ב-Edge יש את Hila ו-Avri) ──
 const isEdge=navigator.userAgent.includes("Edg/");
 function heVoices(){return(speechSynthesis.getVoices()||[]).filter(v=>/^(he|iw)/i.test(v.lang));}
-function pickVoice(id){const want=id==="he-IL-AvriNeural"?/avri/i:/hila/i;const he=heVoices();return he.find(v=>want.test(v.name))||he.find(v=>/natural|online/i.test(v.name))||he[0]||null;}
+const VOICE_RE={"he-IL-AvriNeural":/avri|אברי/i,"he-IL-HilaNeural":/hila|הילה/i};
+function pickVoice(id){const want=VOICE_RE[id]||VOICE_RE["he-IL-HilaNeural"];const he=heVoices();
+ return he.find(v=>want.test(v.name)||want.test(v.voiceURI))||he.find(v=>/natural|online/i.test(v.name))||he[0]||null;}
+const shortName=v=>v?v.name.replace(/^Microsoft\s+/i,"").replace(/\s*-\s*Hebrew.*$/i,""):"";
 let utter=null;
 function speak(text,voiceId,rate,volume,onEnd){if(!("speechSynthesis" in window)){onEnd("no-speech");return;}
- const v=pickVoice(voiceId);if(!v){onEnd("no-voice");return;}speechSynthesis.cancel();
+ const v=pickVoice(voiceId);if(!v){onEnd("no-voice");return;}
+ // ביטול ממש לפני speak גורם לפעמים לדפדפן "לבלוע" את ההקראה – מבטלים רק אם משהו מתנגן, ומחכים רגע
+ const busy=speechSynthesis.speaking||speechSynthesis.pending;if(busy)speechSynthesis.cancel();
  const u=new SpeechSynthesisUtterance(text);u.voice=v;u.lang=v.lang;u.rate=Math.max(.5,Math.min(2,1+rate/100));u.volume=volume;
  let finished=false;const end=e=>{if(finished)return;finished=true;onEnd(e);};u.onend=()=>end(null);u.onerror=ev=>end(ev.error==="interrupted"||ev.error==="canceled"?null:"speech-error");
- utter=u;speechSynthesis.speak(u);}
-function speakerStatus(){const he=heVoices();const good=he.some(v=>/hila|avri/i.test(v.name));
+ utter=u;setTimeout(()=>speechSynthesis.speak(u),busy?150:0);return v;}
+function speakerStatus(){const he=heVoices();const hila=he.find(v=>VOICE_RE["he-IL-HilaNeural"].test(v.name)),avri=he.find(v=>VOICE_RE["he-IL-AvriNeural"].test(v.name));
  $("spkDot").className="dot "+(speakerOn?"on":"warn");
  $("spkText").textContent=speakerOn?"הלשונית הזו מקריאה את ההודעות ✓":(state&&state.speakers?"לשונית אחרת מקריאה ✓":"אף לשונית לא מקריאה כרגע");
- $("spkHint").textContent=!("speechSynthesis" in window)?"הדפדפן הזה לא יכול להקריא.":!isEdge?"מומלץ לפתוח את הדף ב-Microsoft Edge – רק בו יש את Hila ו-Avri.":!he.length?"טוען קולות…":good?"נמצאו הקולות Hila ו-Avri":"לא נמצאו Hila/Avri – יוקרא בקול עברי אחר";
+ $("spkHint").textContent=!("speechSynthesis" in window)?"הדפדפן הזה לא יכול להקריא.":!isEdge?"מומלץ לפתוח את הדף ב-Microsoft Edge – רק בו יש את Hila ו-Avri.":!he.length?"לא נמצאו קולות עבריים בדפדפן הזה.":"קולות שנמצאו: "+he.map(shortName).join(", ")+(hila&&avri?" ✓":" – "+(!hila?"Hila":"")+(!hila&&!avri?" ו-":"")+(!avri?"Avri":"")+" חסר, יוקרא בקול אחר");
  $("speakerBtn").textContent=speakerOn?"⏹ הפסק להקריא מכאן":"🔊 הפעל הקראה מהלשונית הזו";}
 if("speechSynthesis" in window)speechSynthesis.onvoiceschanged=speakerStatus;
 let spkRetry=1000;
@@ -219,8 +224,10 @@ function connectSpeaker(){speakerWs=new WebSocket((location.protocol==="https:"?
  speakerWs.onmessage=e=>{spkRetry=1000;let m;try{m=JSON.parse(e.data);}catch{return;}
   if(m.type==="speak"){const id=m.id;speak(m.text,m.voice,m.rate,m.volume,err=>{try{speakerWs.send(JSON.stringify({type:"done",id,error:err||undefined}));}catch{}});}
   else if(m.type==="stop"){speechSynthesis.cancel();}};
- speakerWs.onclose=e=>{if(!speakerOn)return;if(e.code===4001){location.href="/";return;}setTimeout(connectSpeaker,spkRetry);spkRetry=Math.min(spkRetry*2,15000);};}
+ speakerWs.onclose=e=>{if(!speakerOn)return;if(e.code===4001){location.href="/";return;}
+  if(e.code===4002){speakerOn=false;speakerStatus();toast("לשונית אחרת התחילה להקריא – הלשונית הזו הפסיקה");return;}setTimeout(connectSpeaker,spkRetry);spkRetry=Math.min(spkRetry*2,15000);};}
 $("speakerBtn").onclick=()=>{if(speakerOn){speakerOn=false;try{speakerWs.close();}catch{}speechSynthesis.cancel();speakerStatus();return;}
+ if(!("speechSynthesis" in window)||!heVoices().length){toast("בדפדפן הזה אין קולות עבריים – פתח את האתר ב-Microsoft Edge",true);return;}
  // הקלקה הזו גם "מאשרת" לדפדפן להשמיע קול מהדף
  const warm=new SpeechSynthesisUtterance(" ");warm.volume=0;speechSynthesis.speak(warm);
  speakerOn=true;connectSpeaker();speakerStatus();toast("הלשונית הזו תקריא את ההודעות – השאר אותה פתוחה");};
@@ -263,7 +270,7 @@ act("pauseBtn",()=>post("pause",{paused:!state?.paused}));act("skipBtn",()=>post
 act("saveBtn",async()=>{await post("settings",{settings:collect()});$("saved").textContent="נשמר ב-"+new Date().toLocaleTimeString("he-IL");formLoaded=false;render(state);});
 act("copyBtn",async()=>{await navigator.clipboard.writeText($("obsUrl").value);toast("הקישור הועתק ✓ – הדבק אותו ב-OBS");});
 act("rotateBtn",async()=>{if(!confirm("ליצור קישור חדש? הקישור הישן יפסיק לעבוד, וצריך להדביק את החדש ב-OBS."))return;await post("rotate");toast("נוצר קישור חדש");});
-act("hearBtn",async()=>{if(mode==="edge"){await new Promise(res=>speak($("testText").value||"בדיקת קול",voice,+$("rate").value,+$("volume").value/100,err=>{if(err)toast(err==="no-voice"?"לא נמצא קול עברי בדפדפן – פתח ב-Edge":"ההקראה נכשלה",true);res();}));return;}
+act("hearBtn",async()=>{if(mode==="edge"){await new Promise(res=>{const used=speak($("testText").value||"בדיקת קול",voice,+$("rate").value,+$("volume").value/100,err=>{if(err)toast(err==="no-voice"?"לא נמצא קול עברי בדפדפן – פתח ב-Edge":"ההקראה נכשלה ("+err+")",true);res();});if(used)toast("מקריא בקול: "+shortName(used));});return;}
  const blob=await post("voice-test",{text:$("testText").value,voice,rate:+$("rate").value});const a=new Audio(URL.createObjectURL(blob));a.volume=+$("volume").value/100;await a.play();});
 act("obsTestBtn",async()=>{await post("settings",{settings:collect()});await post("test",{text:$("testText").value});toast(mode==="edge"?(state?.speakers?"נשלח – תשמע מהלשונית המקריאה ותראה ב-OBS":"נשמר – יוקרא כשתפעיל הקראה מהלשונית"):(state?.overlays?"נשלח ל-OBS":"נשמר – יושמע כשהווידג'ט ייפתח ב-OBS"));});
 let retry=1000;function connect(){const ws=new WebSocket((location.protocol==="https:"?"wss://":"ws://")+location.host+"/api/ws");

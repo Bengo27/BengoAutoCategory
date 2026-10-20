@@ -479,6 +479,8 @@ export class ChannelDO {
     if (role === "overlay" && !this.checkKey(url.searchParams.get("key"))) return new Response("forbidden", { status: 403 });
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair);
+    // רק לשונית אחת מקריאה – החדשה מחליפה את הקודמת (אחרת ההקראה עלולה ללכת ללשונית בלי קולות)
+    if (role === "speaker") for (const ws of this.sockets("speaker")) try { ws.close(4002, "replaced"); } catch {}
     this.state.acceptWebSocket(server, [role]);
     if (role !== "overlay") server.send(JSON.stringify({ type: "state", state: this.view() }));
     if (role !== "dashboard") {
