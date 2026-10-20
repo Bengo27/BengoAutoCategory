@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
+using System.Net.Http;
 using System.Windows;
 using System.Windows.Input;
 using AutoCategory.Core.Platforms.Kick;

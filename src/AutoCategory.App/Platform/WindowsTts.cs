@@ -45,7 +45,7 @@ public sealed class SapiTtsEngine : ITtsEngine
         Set(voice, "Rate", Math.Clamp(r.RatePercent / 10, -10, 10));
 
         var stream = Create("SAPI.SpFileStream");
-        var format = Get(stream, "Format");
+        var format = Get(stream, "Format") ?? throw new TtsException("רכיב הדיבור של Windows לא תקין.");
         Set(format, "Type", SaftKhz22Bit16Mono);
         PutRef(stream, "Format", format);
         Call(stream, "Open", file, SsfmCreateForWrite, false);
