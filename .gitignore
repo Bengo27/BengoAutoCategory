@@ -8,3 +8,6 @@ kick_auth.json
 *.corrupt-*
 server/.dev.vars
 publish-studio/
+web/.dev.vars
+web/.wrangler/
+web/node_modules/

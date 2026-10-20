@@ -1,0 +1,19 @@
+# Catego TTS – האתר (Cloudflare Worker + Durable Objects)
+# כתובת: https://catego.<subdomain>.workers.dev
+name = "catego"
+main = "src/index.js"
+compatibility_date = "2025-09-01"
+# המשתנים (KICK_CLIENT_ID, KICK_CLIENT_SECRET, AZURE_SPEECH_KEY, AZURE_SPEECH_REGION) מוגדרים בדשבורד של Cloudflare
+keep_vars = true
+
+[observability]
+enabled = true
+
+# אובייקט אחד לכל סטרימר: ההתחברות לקיק, ההגדרות, התור והחיבור לווידג'ט ב-OBS
+[[durable_objects.bindings]]
+name = "CHANNEL"
+class_name = "ChannelDO"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["ChannelDO"]

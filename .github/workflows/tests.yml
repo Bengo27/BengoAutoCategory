@@ -21,3 +21,5 @@ jobs:
         run: dotnet build src/Catego.Studio/Catego.Studio.csproj -c Release
       - name: Broker tests
         run: node server/test-worker.mjs
+      - name: Website tests
+        run: node web/test/test.mjs
