@@ -5,6 +5,12 @@ const env = { KICK_CLIENT_ID: "cid", KICK_CLIENT_SECRET: "super-secret" };
 let lastKickCall = null;
 
 globalThis.fetch = async (url, init) => {
+  if (String(url).includes("tts.speech.microsoft.com")) {
+    lastKickCall = { url, init, form: new URLSearchParams() };
+    if (init.headers["Ocp-Apim-Subscription-Key"] !== "az-key") return new Response("", { status: 401 });
+    if (init.body.includes("QUOTA")) return new Response("", { status: 429 });
+    return new Response(new Uint8Array([0x49, 0x44, 0x33]), { status: 200, headers: { "Content-Type": "audio/mpeg" } });
+  }
   lastKickCall = { url, init, form: new URLSearchParams(init.body) };
   const f = lastKickCall.form;
   if (f.get("client_secret") !== "super-secret") return new Response('{"error":"invalid_client"}', { status: 401 });
@@ -47,6 +53,28 @@ check(r.status === 404, "GET /token not allowed");
 
 r = await worker.fetch(req("/token", "POST", { code: "c", code_verifier: "v", redirect_uri: "http://localhost:47653/callback" }), {});
 check(r.status === 500, "not configured");
+
+// ── TTS ──
+const ttsEnv = { ...env, AZURE_SPEECH_KEY: "az-key", AZURE_SPEECH_REGION: "westeurope" };
+r = await worker.fetch(req("/health", "GET"), ttsEnv);
+check((await r.json()).tts === true, "health reports tts");
+
+r = await worker.fetch(req("/tts", "POST", { text: "שלום <עולם> & חברים", voice: "he-IL-HilaNeural", rate: 10 }), ttsEnv);
+check(r.status === 200 && r.headers.get("Content-Type") === "audio/mpeg", "tts returns mp3");
+check(lastKickCall.url === "https://westeurope.tts.speech.microsoft.com/cognitiveservices/v1", "tts calls Azure region");
+check(lastKickCall.init.body.includes("&lt;עולם&gt; &amp;") && lastKickCall.init.body.includes('rate="+10%"'), "tts escapes SSML + rate");
+
+r = await worker.fetch(req("/tts", "POST", { text: "hi", voice: "en-US-JennyNeural" }), ttsEnv);
+check(r.status === 400, "tts rejects other voices");
+
+r = await worker.fetch(req("/tts", "POST", { text: "x".repeat(401), voice: "he-IL-AvriNeural" }), ttsEnv);
+check(r.status === 400, "tts rejects long text");
+
+r = await worker.fetch(req("/tts", "POST", { text: "QUOTA", voice: "he-IL-AvriNeural" }), ttsEnv);
+check(r.status === 429, "tts quota passes 429");
+
+r = await worker.fetch(req("/tts", "POST", { text: "hi", voice: "he-IL-AvriNeural" }), env);
+check(r.status === 503, "tts not configured");
 
 console.log(failed ? `\n${failed} FAILED` : "\nAll worker tests passed");
 process.exit(failed ? 1 : 0);

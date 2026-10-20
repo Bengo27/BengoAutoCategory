@@ -8,7 +8,7 @@ namespace AutoCategory.Core.Platforms.Kick;
 /// <summary>
 /// חיבור לקיק: התחברות (OAuth + PKCE דרך הדפדפן), קריאת הקטגוריה הנוכחית ושינוי קטגוריה.
 /// </summary>
-public sealed class KickPlatform : IStreamingPlatform
+public sealed class KickPlatform : IStreamingPlatform, IKickRewardsApi
 {
     private readonly KickAuthStore _store;
     private readonly KickApiClient _api;
@@ -244,6 +244,39 @@ public sealed class KickPlatform : IStreamingPlatform
 
     public Task<IReadOnlyList<KickCategory>> SearchCategoriesAsync(string query, CancellationToken ct = default) =>
         Guard(() => _api.SearchCategoriesAsync(query, ct));
+
+    // ───────────────────────── פרסי נקודות ─────────────────────────
+
+    public bool HasRewardsScope
+    {
+        get
+        {
+            var scope = _store.Snapshot().Scope;
+            // אם קיק לא החזיר רשימת הרשאות – מנסים, ואם תהיה שגיאה 403 נבקש להתחבר מחדש
+            return string.IsNullOrWhiteSpace(scope) ||
+                   scope.Split(' ', StringSplitOptions.RemoveEmptyEntries).Contains(KickEndpoints.RewardsScope);
+        }
+    }
+
+    public Task<IReadOnlyList<KickReward>> GetRewardsAsync(CancellationToken ct) => Guard(() => _api.GetRewardsAsync(ct));
+
+    public Task<KickReward> CreateRewardAsync(string title, int cost, string description, string color, CancellationToken ct) =>
+        Guard(() => _api.CreateRewardAsync(title, cost, description, color, ct));
+
+    public Task<KickReward> UpdateRewardAsync(string id, IReadOnlyDictionary<string, object> changes, CancellationToken ct) =>
+        Guard(() => _api.UpdateRewardAsync(id, changes, ct));
+
+    public Task<IReadOnlyList<KickRedemption>> GetPendingRedemptionsAsync(string rewardId, CancellationToken ct) =>
+        Guard(() => _api.GetPendingRedemptionsAsync(rewardId, ct));
+
+    public Task AcceptRedemptionsAsync(IReadOnlyList<string> ids, CancellationToken ct) =>
+        Guard(async () => { await _api.AcceptRedemptionsAsync(ids, ct).ConfigureAwait(false); return true; });
+
+    public Task RejectRedemptionsAsync(IReadOnlyList<string> ids, CancellationToken ct) =>
+        Guard(async () => { await _api.RejectRedemptionsAsync(ids, ct).ConfigureAwait(false); return true; });
+
+    public Task<IReadOnlyDictionary<long, string>> GetUserNamesAsync(IReadOnlyList<long> userIds, CancellationToken ct) =>
+        Guard(() => _api.GetUserNamesAsync(userIds, ct));
 
     /// <summary>אם קיק אומר שהחיבור פג – מעדכן את מצב החיבור.</summary>
     private async Task<T> Guard<T>(Func<Task<T>> action)

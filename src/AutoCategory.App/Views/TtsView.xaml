@@ -1,0 +1,319 @@
+<UserControl x:Class="AutoCategory.App.Views.TtsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <UserControl.Resources>
+        <Style x:Key="RowLabel" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style x:Key="RowHint" TargetType="TextBlock" BasedOn="{StaticResource Muted}">
+            <Setter Property="Margin" Value="0,2,0,0" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style x:Key="Row" TargetType="DockPanel">
+            <Setter Property="Margin" Value="0,9" />
+            <Setter Property="LastChildFill" Value="True" />
+        </Style>
+        <Style x:Key="NumberBox" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+            <Setter Property="Width" Value="90" />
+            <Setter Property="FlowDirection" Value="LeftToRight" />
+            <Setter Property="TextAlignment" Value="Center" />
+        </Style>
+
+        <!-- כפתור בחירה (קול / מקום השמעה) -->
+        <Style x:Key="Chip" TargetType="RadioButton">
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Margin" Value="0,0,8,8" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border x:Name="Bd" Background="{StaticResource BgBrush}" BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="1.5" CornerRadius="8" Padding="14,9">
+                            <ContentPresenter />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource CardHoverBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                                <Setter TargetName="Bd" Property="Background" Value="#163A36" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="34,24,34,24" MaxWidth="860" HorizontalAlignment="Left">
+            <TextBlock Text="הקראה (TTS)" Style="{StaticResource PageTitle}" />
+            <TextBlock Style="{StaticResource PageSubtitle}" TextWrapping="Wrap"
+                       Text="צופים קונים בנקודות הערוץ פרס הקראה, כותבים הודעה – והיא מוקראת בקול בשידור. הודעה שנחסמת או נדחית מחזירה לצופה את הנקודות." />
+
+            <!-- ═══ מצב ═══ -->
+            <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                <StackPanel>
+                    <DockPanel>
+                        <CheckBox DockPanel.Dock="Right" Style="{StaticResource ToggleSwitch}" VerticalAlignment="Top"
+                                  IsChecked="{Binding Enabled}" ToolTip="הפעלה / כיבוי של ההקראה" />
+                        <StackPanel>
+                            <TextBlock Text="{Binding StatusTitle}" FontSize="17" FontWeight="SemiBold" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding StatusText}" Style="{StaticResource RowHint}" Margin="0,4,0,0" />
+                        </StackPanel>
+                    </DockPanel>
+                    <WrapPanel Margin="0,14,0,0">
+                        <Button Style="{StaticResource PrimaryButton}" Content="עבור לחיבור לקיק" Command="{Binding GoToKickCommand}"
+                                Visibility="{Binding NeedsKick, Converter={StaticResource BoolToVis}}" Margin="0,0,8,0" />
+                        <Button Content="{Binding RewardButtonText}" Command="{Binding EnsureRewardCommand}" Margin="0,0,8,0" />
+                        <Button Content="{Binding PauseButtonText}" Command="{Binding TogglePauseCommand}" Margin="0,0,8,0" />
+                        <Button Style="{StaticResource DangerButton}" Content="⏭ דלג על ההקראה" Command="{Binding SkipCommand}" />
+                    </WrapPanel>
+                    <TextBlock Text="{Binding Message}" Foreground="{StaticResource AccentBrush}" TextWrapping="Wrap" Margin="0,10,0,0" />
+                </StackPanel>
+            </Border>
+
+            <!-- ═══ תור ═══ -->
+            <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                <StackPanel>
+                    <DockPanel>
+                        <TextBlock DockPanel.Dock="Right" Text="{Binding QueueSummary}" Style="{StaticResource Muted}" />
+                        <TextBlock Text="תור ההקראות" Style="{StaticResource CardLabel}" />
+                    </DockPanel>
+                    <TextBlock Text="עוד אין הודעות. ברגע שצופה יקנה את הפרס – ההודעה תופיע כאן." Margin="0,6,0,0">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock" BasedOn="{StaticResource Muted}">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Queue.Count}" Value="0">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                    <ItemsControl ItemsSource="{Binding Queue}" Margin="0,6,0,0">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="0,9">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsFinished}" Value="True">
+                                                    <Setter Property="Opacity" Value="0.55" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <DockPanel>
+                                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                                            <Button Style="{StaticResource PrimaryButton}" Content="✓ הקרא" Padding="12,4" Margin="0,0,6,0"
+                                                    Command="{Binding DataContext.ApproveCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                    CommandParameter="{Binding}"
+                                                    Visibility="{Binding CanApprove, Converter={StaticResource BoolToVis}}" />
+                                            <Button Content="✕ דחה" Padding="12,4" ToolTip="דוחה ומחזיר לצופה את הנקודות"
+                                                    Command="{Binding DataContext.RejectCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                    CommandParameter="{Binding}"
+                                                    Visibility="{Binding CanReject, Converter={StaticResource BoolToVis}}" />
+                                        </StackPanel>
+                                        <StackPanel>
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{Binding User}" FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}" />
+                                                <TextBlock Text="{Binding Time}" Style="{StaticResource Muted}" Margin="8,0,0,0" />
+                                                <TextBlock Text="{Binding StatusText}" Style="{StaticResource Muted}" Margin="8,0,0,0" />
+                                            </StackPanel>
+                                            <TextBlock Text="{Binding Text}" TextWrapping="Wrap" Margin="0,3,0,0" FontSize="14" />
+                                        </StackPanel>
+                                    </DockPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <!-- ═══ קול ═══ -->
+            <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                <StackPanel>
+                    <TextBlock Text="קול" Style="{StaticResource CardLabel}" />
+                    <WrapPanel Margin="0,10,0,4">
+                        <RadioButton Style="{StaticResource Chip}" GroupName="Voice" IsChecked="{Binding VoiceHila}">
+                            <StackPanel>
+                                <TextBlock Text="Hila" FontWeight="SemiBold" FontSize="14" />
+                                <TextBlock Text="אישה · איכותי" Style="{StaticResource Muted}" />
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton Style="{StaticResource Chip}" GroupName="Voice" IsChecked="{Binding VoiceAvri}">
+                            <StackPanel>
+                                <TextBlock Text="Avri" FontWeight="SemiBold" FontSize="14" />
+                                <TextBlock Text="גבר · איכותי" Style="{StaticResource Muted}" />
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton Style="{StaticResource Chip}" GroupName="Voice" IsChecked="{Binding VoiceWindows}">
+                            <StackPanel>
+                                <TextBlock Text="Asaf" FontWeight="SemiBold" FontSize="14" />
+                                <TextBlock Text="הקול של Windows · בלי אינטרנט" Style="{StaticResource Muted}" />
+                            </StackPanel>
+                        </RadioButton>
+                    </WrapPanel>
+                    <TextBlock Style="{StaticResource RowHint}"
+                               Text="אם הקול האיכותי לא זמין רגע – ההקראה עוברת אוטומטית לקול של Windows, כדי שלא תיעצר." />
+
+                    <DockPanel Style="{StaticResource Row}">
+                        <TextBlock DockPanel.Dock="Right" Text="{Binding RateText}" Width="60" TextAlignment="Center" VerticalAlignment="Center" />
+                        <TextBlock DockPanel.Dock="Left" Text="מהירות" Style="{StaticResource RowLabel}" Width="80" />
+                        <Slider Minimum="-50" Maximum="50" Value="{Binding Rate}" TickFrequency="10" IsSnapToTickEnabled="False"
+                                VerticalAlignment="Center" FlowDirection="LeftToRight" Margin="10,0" />
+                    </DockPanel>
+                    <DockPanel Style="{StaticResource Row}">
+                        <TextBlock DockPanel.Dock="Right" Text="{Binding VolumeText}" Width="60" TextAlignment="Center" VerticalAlignment="Center" />
+                        <TextBlock DockPanel.Dock="Left" Text="עוצמה" Style="{StaticResource RowLabel}" Width="80" />
+                        <Slider Minimum="0" Maximum="100" Value="{Binding Volume}" VerticalAlignment="Center" FlowDirection="LeftToRight" Margin="10,0" />
+                    </DockPanel>
+
+                    <DockPanel Margin="0,8,0,0">
+                        <Button DockPanel.Dock="Right" Style="{StaticResource PrimaryButton}" Content="▶ בדוק קול" Command="{Binding TestVoiceCommand}" Margin="8,0,0,0" />
+                        <TextBox Text="{Binding TestText, UpdateSourceTrigger=PropertyChanged}" />
+                    </DockPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- ═══ איפה לשמוע ═══ -->
+            <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                <StackPanel>
+                    <TextBlock Text="איפה ההקראה מושמעת" Style="{StaticResource CardLabel}" />
+                    <WrapPanel Margin="0,10,0,4">
+                        <RadioButton Style="{StaticResource Chip}" GroupName="Playback" IsChecked="{Binding PlayInApp}">
+                            <StackPanel>
+                                <TextBlock Text="במחשב" FontWeight="SemiBold" FontSize="14" />
+                                <TextBlock Text="ברמקולים – OBS קולט כ-Desktop Audio" Style="{StaticResource Muted}" />
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton Style="{StaticResource Chip}" GroupName="Playback" IsChecked="{Binding PlayInWidget}">
+                            <StackPanel>
+                                <TextBlock Text="בווידג'ט של OBS" FontWeight="SemiBold" FontSize="14" />
+                                <TextBlock Text="ערוץ שמע נפרד עם עוצמה משלו (מומלץ)" Style="{StaticResource Muted}" />
+                            </StackPanel>
+                        </RadioButton>
+                    </WrapPanel>
+
+                    <TextBlock Text="הווידג'ט ל-OBS (מציג את שם הצופה וההודעה על המסך)" Style="{StaticResource RowLabel}" Margin="0,10,0,6" />
+                    <DockPanel>
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                            <Button Content="העתק" Command="{Binding CopyWidgetUrlCommand}" Margin="8,0,0,0" />
+                            <Button Content="תצוגה מקדימה" Command="{Binding OpenWidgetPreviewCommand}" Margin="8,0,0,0" />
+                        </StackPanel>
+                        <TextBox Text="{Binding WidgetUrl, Mode=OneWay}" IsReadOnly="True" FlowDirection="LeftToRight" />
+                    </DockPanel>
+                    <TextBlock Style="{StaticResource RowHint}" Margin="0,8,0,0">
+                        ב-OBS: מקורות ← <Run FontWeight="SemiBold">+</Run> ← <Run FontWeight="SemiBold">Browser</Run> ← מדביקים את הכתובת, רוחב 1920 וגובה 400.<LineBreak />
+                        בהשמעה בווידג'ט: לסמן ב-Browser Source את <Run FontWeight="SemiBold">Control audio via OBS</Run> – ואז יש לו פס עוצמה משלו במיקסר.<LineBreak />
+                        "תצוגה מקדימה" מציגה הודעה לדוגמה כדי שיהיה קל למקם את הווידג'ט.
+                    </TextBlock>
+                </StackPanel>
+            </Border>
+
+            <!-- ═══ הפרס בקיק ═══ -->
+            <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                <StackPanel>
+                    <TextBlock Text="הפרס בקיק" Style="{StaticResource CardLabel}" />
+                    <DockPanel Style="{StaticResource Row}">
+                        <TextBox DockPanel.Dock="Right" Width="260" Text="{Binding RewardTitle, UpdateSourceTrigger=PropertyChanged}" MaxLength="50" />
+                        <TextBlock Text="שם הפרס" Style="{StaticResource RowLabel}" />
+                    </DockPanel>
+                    <DockPanel Style="{StaticResource Row}">
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                            <TextBox Style="{StaticResource NumberBox}" Text="{Binding RewardCost, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBlock Text="נקודות" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="8,0,0,0" />
+                        </StackPanel>
+                        <TextBlock Text="מחיר" Style="{StaticResource RowLabel}" />
+                    </DockPanel>
+                    <DockPanel Style="{StaticResource Row}">
+                        <TextBox DockPanel.Dock="Right" Width="420" Text="{Binding RewardDescription, UpdateSourceTrigger=PropertyChanged}" MaxLength="200" />
+                        <TextBlock Text="תיאור לצופים" Style="{StaticResource RowLabel}" />
+                    </DockPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- ═══ סינון ═══ -->
+            <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                <StackPanel>
+                    <TextBlock Text="מה מוקרא, ושמירה על השידור" Style="{StaticResource CardLabel}" />
+
+                    <DockPanel Style="{StaticResource Row}">
+                        <TextBox DockPanel.Dock="Right" Width="260" Text="{Binding Template, UpdateSourceTrigger=PropertyChanged}" />
+                        <StackPanel>
+                            <TextBlock Text="נוסח ההקראה" Style="{StaticResource RowLabel}" />
+                            <TextBlock Text="{}{user} = שם הצופה, {text} = ההודעה. למשל: {user} כותב: {text}" Style="{StaticResource RowHint}" />
+                        </StackPanel>
+                    </DockPanel>
+
+                    <DockPanel Style="{StaticResource Row}">
+                        <CheckBox DockPanel.Dock="Right" Style="{StaticResource ToggleSwitch}" IsChecked="{Binding ManualApproval}" />
+                        <StackPanel>
+                            <TextBlock Text="אישור ידני לפני הקראה" Style="{StaticResource RowLabel}" />
+                            <TextBlock Text="כל הודעה מחכה בתור עד שתלחץ &quot;הקרא&quot; או &quot;דחה&quot;." Style="{StaticResource RowHint}" />
+                        </StackPanel>
+                    </DockPanel>
+
+                    <DockPanel Style="{StaticResource Row}">
+                        <CheckBox DockPanel.Dock="Right" Style="{StaticResource ToggleSwitch}" IsChecked="{Binding BlockLinks}" />
+                        <StackPanel>
+                            <TextBlock Text="חסימת קישורים" Style="{StaticResource RowLabel}" />
+                            <TextBlock Text="הודעה עם קישור נדחית והנקודות חוזרות לצופה." Style="{StaticResource RowHint}" />
+                        </StackPanel>
+                    </DockPanel>
+
+                    <DockPanel Style="{StaticResource Row}">
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                            <TextBox Style="{StaticResource NumberBox}" Text="{Binding MaxChars, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBlock Text="תווים" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="8,0,0,0" />
+                        </StackPanel>
+                        <StackPanel>
+                            <TextBlock Text="אורך מקסימלי" Style="{StaticResource RowLabel}" />
+                            <TextBlock Text="הודעה ארוכה יותר נחתכת (10–400)." Style="{StaticResource RowHint}" />
+                        </StackPanel>
+                    </DockPanel>
+
+                    <DockPanel Style="{StaticResource Row}">
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                            <TextBox Style="{StaticResource NumberBox}" Text="{Binding Gap, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBlock Text="שניות" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="8,0,0,0" />
+                        </StackPanel>
+                        <TextBlock Text="הפסקה בין הקראות" Style="{StaticResource RowLabel}" />
+                    </DockPanel>
+
+                    <DockPanel Style="{StaticResource Row}">
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                            <TextBox Style="{StaticResource NumberBox}" Text="{Binding MaxAge, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBlock Text="דקות" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="8,0,0,0" />
+                        </StackPanel>
+                        <StackPanel>
+                            <TextBlock Text="בקשה ישנה נדחית אחרי" Style="{StaticResource RowLabel}" />
+                            <TextBlock Text="למשל אם צופה קנה כשהתוכנה הייתה סגורה – הנקודות חוזרות אליו." Style="{StaticResource RowHint}" />
+                        </StackPanel>
+                    </DockPanel>
+
+                    <DockPanel Margin="0,10,0,6">
+                        <Button DockPanel.Dock="Right" Style="{StaticResource GhostButton}" Content="שחזר רשימה מקורית" Command="{Binding ResetBannedWordsCommand}" />
+                        <StackPanel>
+                            <TextBlock Text="מילים חסומות (מילה או ביטוי בכל שורה)" Style="{StaticResource RowLabel}" />
+                            <TextBlock Text="הודעה עם מילה חסומה נדחית והנקודות חוזרות. נתפס גם עם ו/ה/ש וכו' בהתחלה." Style="{StaticResource RowHint}" />
+                        </StackPanel>
+                    </DockPanel>
+                    <TextBox Text="{Binding BannedWords, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True"
+                             MinHeight="90" MaxHeight="180" VerticalContentAlignment="Top" TextWrapping="NoWrap"
+                             VerticalScrollBarVisibility="Auto" />
+                </StackPanel>
+            </Border>
+
+            <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                <Button Style="{StaticResource PrimaryButton}" Content="שמור הגדרות" Command="{Binding SaveCommand}" MinWidth="120" />
+                <TextBlock Text="{Binding SavedText}" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="12,0,0,0" />
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

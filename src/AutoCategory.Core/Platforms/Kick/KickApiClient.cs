@@ -388,6 +388,134 @@ public sealed class KickApiClient
     private static string Acronym(IEnumerable<string> words) =>
         string.Concat(words.Where(w => w.Length > 0 && char.IsLetter(w[0])).Select(w => char.ToUpperInvariant(w[0])));
 
+    // ───────────────────────── פרסי נקודות (Channel Rewards) ─────────────────────────
+
+    public async Task<IReadOnlyList<KickReward>> GetRewardsAsync(CancellationToken ct)
+    {
+        using var doc = await SendAuthorizedAsync(HttpMethod.Get, KickEndpoints.Rewards, null, ct).ConfigureAwait(false);
+        var list = new List<KickReward>();
+        if (doc is not null && doc.RootElement.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Array)
+            foreach (var r in data.EnumerateArray())
+                if (ParseReward(r) is { } reward) list.Add(reward);
+        return list;
+    }
+
+    public async Task<KickReward> CreateRewardAsync(string title, int cost, string description, string color, CancellationToken ct)
+    {
+        var json = JsonSerializer.Serialize(new Dictionary<string, object>
+        {
+            ["title"] = title,
+            ["cost"] = cost,
+            ["description"] = description,
+            ["background_color"] = color,
+            ["is_enabled"] = true,
+            ["is_user_input_required"] = true,
+            ["should_redemptions_skip_request_queue"] = false,
+        });
+        using var doc = await SendAuthorizedAsync(HttpMethod.Post, KickEndpoints.Rewards, json, ct).ConfigureAwait(false);
+        return ParseRewardResponse(doc) ?? throw new KickException("קיק לא החזיר את הפרס שנוצר.");
+    }
+
+    public async Task<KickReward> UpdateRewardAsync(string id, IReadOnlyDictionary<string, object> changes, CancellationToken ct)
+    {
+        var json = JsonSerializer.Serialize(changes);
+        using var doc = await SendAuthorizedAsync(HttpMethod.Patch, $"{KickEndpoints.Rewards}/{Uri.EscapeDataString(id)}", json, ct)
+            .ConfigureAwait(false);
+        return ParseRewardResponse(doc) ?? throw new KickException("קיק לא החזיר את הפרס שעודכן.");
+    }
+
+    /// <summary>כל הבקשות שממתינות לפרס מסוים (עד 5 עמודים).</summary>
+    public async Task<IReadOnlyList<KickRedemption>> GetPendingRedemptionsAsync(string rewardId, CancellationToken ct)
+    {
+        var list = new List<KickRedemption>();
+        string? cursor = null;
+        for (var page = 0; page < 5; page++)
+        {
+            var url = $"{KickEndpoints.Redemptions}?reward_id={Uri.EscapeDataString(rewardId)}&status=pending";
+            if (cursor is not null) url += "&cursor=" + Uri.EscapeDataString(cursor);
+            using var doc = await SendAuthorizedAsync(HttpMethod.Get, url, null, ct).ConfigureAwait(false);
+            if (doc is null) break;
+            var root = doc.RootElement;
+            if (root.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var group in data.EnumerateArray())
+                {
+                    var rid = group.TryGetProperty("reward", out var rw) ? Str(rw, "id") ?? rewardId : rewardId;
+                    if (!group.TryGetProperty("redemptions", out var reds) || reds.ValueKind != JsonValueKind.Array) continue;
+                    foreach (var r in reds.EnumerateArray())
+                    {
+                        var id = Str(r, "id");
+                        if (string.IsNullOrEmpty(id)) continue;
+                        var status = Str(r, "status");
+                        if (status is not null && status != "pending") continue;
+                        long userId = r.TryGetProperty("redeemer", out var who) ? Long(who, "user_id") ?? 0 : 0;
+                        var at = DateTime.TryParse(Str(r, "redeemed_at"), CultureInfo.InvariantCulture,
+                            DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var d) ? d : _utcNow();
+                        list.Add(new KickRedemption(id, rid, userId, Str(r, "user_input") ?? "", at));
+                    }
+                }
+            }
+            cursor = root.TryGetProperty("pagination", out var pg) ? Str(pg, "next_cursor") : null;
+            if (string.IsNullOrEmpty(cursor)) break;
+        }
+        return list;
+    }
+
+    public Task AcceptRedemptionsAsync(IReadOnlyList<string> ids, CancellationToken ct) => ResolveRedemptionsAsync("accept", ids, ct);
+    public Task RejectRedemptionsAsync(IReadOnlyList<string> ids, CancellationToken ct) => ResolveRedemptionsAsync("reject", ids, ct);
+
+    private async Task ResolveRedemptionsAsync(string action, IReadOnlyList<string> ids, CancellationToken ct)
+    {
+        foreach (var chunk in ids.Distinct().Chunk(25))
+        {
+            var json = JsonSerializer.Serialize(new Dictionary<string, object> { ["ids"] = chunk });
+            using var _ = await SendAuthorizedAsync(HttpMethod.Post, $"{KickEndpoints.Redemptions}/{action}", json, ct).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>שמות משתמשים לפי מזהה (לבקשות הקראה – קיק מחזיר רק user_id).</summary>
+    public async Task<IReadOnlyDictionary<long, string>> GetUserNamesAsync(IReadOnlyList<long> userIds, CancellationToken ct)
+    {
+        var result = new Dictionary<long, string>();
+        var ids = userIds.Where(i => i > 0).Distinct().ToList();
+        foreach (var chunk in ids.Chunk(50))
+        {
+            var url = KickEndpoints.Users + "?" + string.Join("&", chunk.Select(i => "id=" + i.ToString(CultureInfo.InvariantCulture)));
+            using var doc = await SendAuthorizedAsync(HttpMethod.Get, url, null, ct).ConfigureAwait(false);
+            if (doc is null || !doc.RootElement.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Array) continue;
+            foreach (var u in data.EnumerateArray())
+            {
+                var id = Long(u, "user_id");
+                var name = Str(u, "name");
+                if (id is > 0 && !string.IsNullOrEmpty(name)) result[id.Value] = name;
+            }
+        }
+        return result;
+    }
+
+    private static KickReward? ParseRewardResponse(JsonDocument? doc)
+    {
+        if (doc is null) return null;
+        var root = doc.RootElement;
+        if (root.TryGetProperty("data", out var data))
+        {
+            if (data.ValueKind == JsonValueKind.Object) return ParseReward(data);
+            if (data.ValueKind == JsonValueKind.Array && data.GetArrayLength() > 0) return ParseReward(data[0]);
+        }
+        return null;
+    }
+
+    private static KickReward? ParseReward(JsonElement r)
+    {
+        var id = Str(r, "id");
+        if (string.IsNullOrEmpty(id)) return null;
+        return new KickReward(id, Str(r, "title") ?? "", Int(r, "cost") ?? 0,
+            Bool(r, "is_enabled") ?? true, Bool(r, "is_paused") ?? false, Bool(r, "is_user_input_required") ?? false);
+    }
+
+    private static bool? Bool(JsonElement e, string name) =>
+        e.TryGetProperty(name, out var v) && v.ValueKind is JsonValueKind.True or JsonValueKind.False ? v.GetBoolean() : null;
+
     public async Task<KickCategory?> GetCategoryByIdAsync(long id, CancellationToken ct)
     {
         var list = await GetCategoriesAsync($"{KickEndpoints.CategoriesV2}?id={id}", ct).ConfigureAwait(false);
@@ -444,7 +572,7 @@ public sealed class KickApiClient
     private static string DescribeError(int status, string body) => status switch
     {
         401 => "החיבור לקיק פג – יש להתחבר מחדש.",
-        403 => "לקיק אין הרשאה לפעולה הזו. ייתכן שחסרה הרשאת channel:write – התחבר מחדש.",
+        403 => "לקיק אין הרשאה לפעולה הזו. ייתכן שחסרה הרשאה – התנתק והתחבר מחדש לקיק.",
         429 => "יותר מדי בקשות לקיק – ננסה שוב מאוחר יותר.",
         >= 500 => $"שגיאה בשרת של קיק ({status}). נסה שוב בעוד רגע.",
         _ => $"קיק החזיר שגיאה {status}: {Short(body)}",

@@ -14,9 +14,13 @@ public static class KickEndpoints
     public const string Channels = ApiHost + "/public/v1/channels";
     public const string CategoriesV2 = ApiHost + "/public/v2/categories";
     public const string CategoriesV1 = ApiHost + "/public/v1/categories";
+    public const string Rewards = ApiHost + "/public/v1/channels/rewards";
+    public const string Redemptions = Rewards + "/redemptions";
 
-    /// <summary>ההרשאות שהתוכנה מבקשת: לקרוא משתמש, לקרוא ולעדכן את הערוץ.</summary>
-    public const string Scopes = "user:read channel:read channel:write";
+    /// <summary>ההרשאות שהתוכנה מבקשת: משתמש, ערוץ (קטגוריה), ופרסי נקודות (הקראה).</summary>
+    public const string Scopes = "user:read channel:read channel:write channel:rewards:read channel:rewards:write";
+
+    public const string RewardsScope = "channel:rewards:write";
 
     /// <summary>הפורט המקומי שמקבל את החזרה מדף ההתחברות של קיק.</summary>
     public const int CallbackPort = 47653;
@@ -26,6 +30,27 @@ public static class KickEndpoints
 public sealed record KickCategory(long Id, string Name, string? Thumbnail);
 
 public sealed record KickChannelInfo(long BroadcasterUserId, string Slug, string? StreamTitle, KickCategory? Category, bool IsLive);
+
+/// <summary>פרס נקודות בערוץ. CanManage=false אומר שהפרס נוצר מחוץ לתוכנה ואי אפשר לנהל אותו מכאן.</summary>
+public sealed record KickReward(string Id, string Title, int Cost, bool IsEnabled, bool IsPaused, bool UserInputRequired);
+
+/// <summary>צופה שקנה פרס (ממתין לאישור / דחייה).</summary>
+public sealed record KickRedemption(string Id, string RewardId, long UserId, string UserInput, DateTime RedeemedAtUtc);
+
+/// <summary>פעולות פרסי הנקודות (ממשק – כדי שאפשר יהיה לבדוק בלי קיק אמיתי).</summary>
+public interface IKickRewardsApi
+{
+    bool IsConnected { get; }
+    /// <summary>false = ההתחברות נעשתה לפני שהוספנו את הרשאת הפרסים – צריך להתחבר מחדש.</summary>
+    bool HasRewardsScope { get; }
+    Task<IReadOnlyList<KickReward>> GetRewardsAsync(CancellationToken ct);
+    Task<KickReward> CreateRewardAsync(string title, int cost, string description, string color, CancellationToken ct);
+    Task<KickReward> UpdateRewardAsync(string id, IReadOnlyDictionary<string, object> changes, CancellationToken ct);
+    Task<IReadOnlyList<KickRedemption>> GetPendingRedemptionsAsync(string rewardId, CancellationToken ct);
+    Task AcceptRedemptionsAsync(IReadOnlyList<string> ids, CancellationToken ct);
+    Task RejectRedemptionsAsync(IReadOnlyList<string> ids, CancellationToken ct);
+    Task<IReadOnlyDictionary<long, string>> GetUserNamesAsync(IReadOnlyList<long> userIds, CancellationToken ct);
+}
 
 public sealed record KickTokenResponse(string AccessToken, string RefreshToken, int ExpiresInSeconds, string? Scope);
 

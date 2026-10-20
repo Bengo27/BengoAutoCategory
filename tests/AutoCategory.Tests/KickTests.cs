@@ -22,6 +22,11 @@ sealed class FakeKickServer : HttpMessageHandler
     public int BrokerCalls;
     public long ChannelCategoryId = 15;
     public string ChannelCategoryName = "Just Chatting";
+    // ── פרסי נקודות ──
+    public List<(string Id, string Title, int Cost, bool Paused, bool Input)> Rewards = new();
+    public List<(string Id, string RewardId, long UserId, string Input, string At)> Pending = new();
+    public List<string> Accepted = new(), Rejected = new();
+
     public Dictionary<string, long> Categories = new(StringComparer.OrdinalIgnoreCase)
     {
         ["Just Chatting"] = 15, ["Grand Theft Auto V"] = 5, ["Counter-Strike 2"] = 7, ["Valorant"] = 9,
@@ -75,6 +80,55 @@ sealed class FakeKickServer : HttpMessageHandler
         if (url.StartsWith(KickEndpoints.Revoke)) return new HttpResponseMessage(HttpStatusCode.OK);
 
         if (auth != ValidAccessToken) return Json(401, "{\"message\":\"Unauthorized\"}");
+
+        if (url.StartsWith(KickEndpoints.Redemptions))
+        {
+            if (request.Method == HttpMethod.Post)
+            {
+                using var doc = JsonDocument.Parse(body);
+                var ids = doc.RootElement.GetProperty("ids").EnumerateArray().Select(e => e.GetString()!).ToList();
+                (url.EndsWith("/accept") ? Accepted : Rejected).AddRange(ids);
+                Pending.RemoveAll(p => ids.Contains(p.Id));
+                return Json(200, "{\"data\":[],\"message\":\"OK\"}");
+            }
+            var q = LoopbackCallbackListener.ParseQuery(request.RequestUri.Query.TrimStart('?'));
+            var rid = q.GetValueOrDefault("reward_id");
+            var reds = Pending.Where(p => p.RewardId == rid).Select(p =>
+                $"{{\"id\":\"{p.Id}\",\"redeemed_at\":\"{p.At}\",\"redeemer\":{{\"user_id\":{p.UserId}}},\"status\":\"pending\",\"user_input\":{JsonSerializer.Serialize(p.Input)}}}");
+            return Json(200, $"{{\"data\":[{{\"reward\":{{\"id\":\"{rid}\",\"title\":\"t\",\"cost\":1,\"can_manage\":true}},\"redemptions\":[{string.Join(",", reds)}]}}],\"message\":\"OK\",\"pagination\":{{\"next_cursor\":\"\"}}}}");
+        }
+
+        if (url.StartsWith(KickEndpoints.Rewards))
+        {
+            string R((string Id, string Title, int Cost, bool Paused, bool Input) r) =>
+                $"{{\"id\":\"{r.Id}\",\"title\":{JsonSerializer.Serialize(r.Title)},\"cost\":{r.Cost},\"is_enabled\":true,\"is_paused\":{(r.Paused ? "true" : "false")},\"is_user_input_required\":{(r.Input ? "true" : "false")},\"description\":\"\",\"background_color\":\"#00e701\",\"should_redemptions_skip_request_queue\":false}}";
+            if (request.Method == HttpMethod.Get)
+                return Json(200, $"{{\"data\":[{string.Join(",", Rewards.Select(R))}],\"message\":\"OK\"}}");
+            using var doc = JsonDocument.Parse(body);
+            var e = doc.RootElement;
+            if (request.Method == HttpMethod.Post)
+            {
+                var r = ($"01REWARD{Rewards.Count + 1}", e.GetProperty("title").GetString()!, e.GetProperty("cost").GetInt32(), false,
+                    e.GetProperty("is_user_input_required").GetBoolean());
+                Rewards.Add(r);
+                return Json(200, $"{{\"data\":{R(r)},\"message\":\"OK\"}}");
+            }
+            var id = url[(KickEndpoints.Rewards.Length + 1)..];
+            var i = Rewards.FindIndex(x => x.Id == id);
+            if (i < 0) return Json(404, "{\"message\":\"not found\"}");
+            var cur = Rewards[i];
+            if (e.TryGetProperty("title", out var t)) cur.Title = t.GetString()!;
+            if (e.TryGetProperty("cost", out var c)) cur.Cost = c.GetInt32();
+            if (e.TryGetProperty("is_paused", out var pz)) cur.Paused = pz.GetBoolean();
+            Rewards[i] = cur;
+            return Json(200, $"{{\"data\":{R(cur)},\"message\":\"OK\"}}");
+        }
+
+        if (url.StartsWith(KickEndpoints.Users) && url.Contains("id="))
+        {
+            var q = request.RequestUri.Query.TrimStart('?').Split('&').Where(x => x.StartsWith("id=")).Select(x => x[3..]);
+            return Json(200, $"{{\"data\":[{string.Join(",", q.Select(id => $"{{\"user_id\":{id},\"name\":\"viewer{id}\"}}"))}],\"message\":\"OK\"}}");
+        }
 
         if (url.StartsWith(KickEndpoints.Users))
             return Json(200, "{\"data\":[{\"user_id\":123,\"name\":\"BengoTV\",\"email\":\"x@y.z\",\"profile_picture\":\"\"}],\"message\":\"OK\"}");

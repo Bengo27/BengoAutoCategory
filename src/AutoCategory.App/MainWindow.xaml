@@ -37,6 +37,8 @@
                                  Content="כללי קטגוריות" Checked="Nav_Checked" />
                     <RadioButton x:Name="NavSites" Style="{StaticResource NavItem}" GroupName="Nav"
                                  Content="כללי אתרים" Checked="Nav_Checked" />
+                    <RadioButton x:Name="NavTts" Style="{StaticResource NavItem}" GroupName="Nav"
+                                 Content="הקראה (TTS)" Checked="Nav_Checked" />
                     <RadioButton x:Name="NavIgnore" Style="{StaticResource NavItem}" GroupName="Nav"
                                  Content="רשימת התעלמות" Checked="Nav_Checked" />
                     <RadioButton x:Name="NavLog" Style="{StaticResource NavItem}" GroupName="Nav"

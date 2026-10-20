@@ -6,6 +6,7 @@ using AutoCategory.Core.Storage;
 var runner = new TestRunner();
 await runner.RunAllAsync(typeof(Tests));
 await runner.RunAllAsync(typeof(KickTests));
+await runner.RunAllAsync(typeof(TtsTests));
 runner.PrintSummary();
 return runner.Failed == 0 ? 0 : 1;
 

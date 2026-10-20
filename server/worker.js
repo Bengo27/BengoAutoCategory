@@ -5,11 +5,15 @@
  * It only does the two OAuth calls that require the secret:
  *   POST /token    { code, code_verifier, redirect_uri }  -> Kick authorization_code exchange
  *   POST /refresh  { refresh_token }                      -> Kick refresh_token grant
- *   GET  /health                                          -> { ok, client_id }
+ *   POST /tts      { text, voice, rate }                  -> MP3 audio (Azure neural voice, Hebrew)
+ *   GET  /health                                          -> { ok, client_id, tts }
  *
  * Required secrets (Cloudflare dashboard -> Worker -> Settings -> Variables and Secrets):
  *   KICK_CLIENT_ID      the app's Client ID
  *   KICK_CLIENT_SECRET  the app's Client Secret   (type: Secret)
+ * Optional (text-to-speech with the Hila / Avri voices):
+ *   AZURE_SPEECH_KEY     Azure "Speech" resource key (free F0 tier)   (type: Secret)
+ *   AZURE_SPEECH_REGION  e.g. westeurope
  *
  * The streamer still logs in on Kick's own page (OAuth + PKCE). The broker never sees passwords,
  * and it does not store tokens – it only forwards Kick's response back to the app.
@@ -24,12 +28,25 @@ const ALLOWED_REDIRECTS = new Set([
 
 const MAX_BODY_BYTES = 8 * 1024;
 
+// TTS: only these voices, and short texts (protects the free Azure quota).
+const TTS_VOICES = new Set(["he-IL-HilaNeural", "he-IL-AvriNeural"]);
+const TTS_MAX_CHARS = 400;
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
     if (request.method === "GET" && (url.pathname === "/" || url.pathname === "/health")) {
-      return json(200, { ok: true, service: "bengo-autocategory-broker", client_id: env.KICK_CLIENT_ID || null });
+      return json(200, {
+        ok: true,
+        service: "bengo-autocategory-broker",
+        client_id: env.KICK_CLIENT_ID || null,
+        tts: Boolean(env.AZURE_SPEECH_KEY && env.AZURE_SPEECH_REGION),
+      });
+    }
+
+    if (request.method === "POST" && url.pathname === "/tts") {
+      return tts(request, env);
     }
 
     if (request.method !== "POST" || (url.pathname !== "/token" && url.pathname !== "/refresh")) {
@@ -93,6 +110,57 @@ export default {
     });
   },
 };
+
+async function tts(request, env) {
+  if (!env.AZURE_SPEECH_KEY || !env.AZURE_SPEECH_REGION) {
+    return json(503, { error: "tts_not_configured" });
+  }
+  let body;
+  try {
+    const raw = await request.text();
+    if (raw.length > MAX_BODY_BYTES) return json(413, { error: "too_large" });
+    body = JSON.parse(raw || "{}");
+  } catch {
+    return json(400, { error: "invalid_json" });
+  }
+  const text = typeof body.text === "string" ? body.text.trim() : "";
+  const voice = body.voice;
+  const rate = Number.isInteger(body.rate) ? Math.max(-50, Math.min(50, body.rate)) : 0;
+  if (!text || text.length > TTS_MAX_CHARS) return json(400, { error: "invalid_text" });
+  if (!TTS_VOICES.has(voice)) return json(400, { error: "invalid_voice" });
+
+  const ssml =
+    `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="he-IL">` +
+    `<voice name="${voice}"><prosody rate="${rate >= 0 ? "+" : ""}${rate}%">${escapeXml(text)}</prosody></voice></speak>`;
+
+  let res;
+  try {
+    res = await fetch(`https://${env.AZURE_SPEECH_REGION}.tts.speech.microsoft.com/cognitiveservices/v1`, {
+      method: "POST",
+      headers: {
+        "Ocp-Apim-Subscription-Key": env.AZURE_SPEECH_KEY,
+        "Content-Type": "application/ssml+xml",
+        "X-Microsoft-OutputFormat": "audio-24khz-48kbitrate-mono-mp3",
+        "User-Agent": "catego-broker",
+      },
+      body: ssml,
+    });
+  } catch {
+    return json(502, { error: "tts_unreachable" });
+  }
+  if (!res.ok) {
+    // 429 = the free monthly quota is used up (the app falls back to the Windows voice)
+    return json(res.status === 429 ? 429 : 502, { error: "tts_failed", status: res.status });
+  }
+  return new Response(res.body, {
+    status: 200,
+    headers: { "Content-Type": "audio/mpeg", "Cache-Control": "no-store" },
+  });
+}
+
+function escapeXml(s) {
+  return s.replace(/[<>&'"]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", "'": "&apos;", '"': "&quot;" })[c]);
+}
 
 function isStr(v) {
   return typeof v === "string" && v.length > 0 && v.length < 4096;
