@@ -8,6 +8,7 @@ using AutoCategory.Core.Platforms.Kick;
 using AutoCategory.Core.Services;
 using AutoCategory.Core.Storage;
 using AutoCategory.Core.Tts;
+using AutoCategory.Core.Widgets;
 using Catego.Studio.Platform;
 
 namespace Catego.Studio;
@@ -33,7 +34,8 @@ public sealed class StudioServices : IDisposable
     public KickPlatform Kick { get; }
     public UpdateService Updates { get; }
     public TtsService Tts { get; }
-    public TtsWidgetServer TtsWidget { get; }
+    public WidgetServer Widgets { get; }
+    public string TtsWidgetUrl => Widgets.BaseUrl + TtsWidgetRoutes.Path;
 
     private readonly string _settingsPath;
     private StudioSettings _settings;
@@ -60,13 +62,14 @@ public sealed class StudioServices : IDisposable
         // ── קיק (דרך שרת ההתחברות של Catego) ──
         var kickStore = new KickAuthStore(DataDirectory, new DpapiSecretProtector());
         var kickApi = new KickApiClient(_http, kickStore) { BrokerUrl = Config.KickBrokerUrl, BrokerClientId = Config.KickClientId };
-        Kick = new KickPlatform(kickStore, kickApi, log, OpenInBrowser) { Scopes = KickEndpoints.StudioScopes };
+        Kick = new KickPlatform(kickStore, kickApi, log, OpenInBrowser) { Scopes = KickEndpoints.StudioScopes, AppName = AppName };
 
         Updates = new UpdateService(_http, Config, log, ReleaseTagPrefix, ExeName);
 
         // ── הקראה (TTS) ──
         var hub = new TtsWidgetHub();
-        TtsWidget = new TtsWidgetServer(hub, log);
+        Widgets = new WidgetServer(log);
+        TtsWidgetRoutes.Map(Widgets, hub);
         var engine = new FallbackTtsEngine(new CloudTtsEngine(_http, () => Config.KickBrokerUrl), new SapiTtsEngine(), log);
         Tts = new TtsService(Kick, engine, new MediaTtsPlayer(), hub, new TtsSettingsStore(DataDirectory, log), log);
     }
@@ -87,7 +90,7 @@ public sealed class StudioServices : IDisposable
 
     public void Start()
     {
-        TtsWidget.Start();
+        Widgets.Start();
         Tts.Start();
         Updates.StartPeriodicChecks();
         Log.Log(LogLevel.Info, Kick.IsConnected ? $"{AppName} הופעל · מחובר לקיק בתור {Kick.AccountName}" : $"{AppName} הופעל");
@@ -102,6 +105,6 @@ public sealed class StudioServices : IDisposable
     public void Dispose()
     {
         Tts.Dispose();
-        TtsWidget.Dispose();
+        Widgets.Dispose();
     }
 }

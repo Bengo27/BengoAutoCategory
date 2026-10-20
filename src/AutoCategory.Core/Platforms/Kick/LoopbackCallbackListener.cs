@@ -134,9 +134,14 @@ public sealed class LoopbackCallbackListener : IDisposable
         "align-items:center;justify-content:center;height:100vh;margin:0}div{text-align:center}" +
         "h1{color:#2DD4BF;font-size:28px}p{color:#9AA0A6;font-size:16px}</style>";
 
-    private const string SuccessPage =
-        "<!doctype html><html dir='rtl' lang='he'><head><meta charset='utf-8'><title>Catego</title>" + PageStyle +
-        "</head><body><div><h1>התחברת לקיק בהצלחה ✓</h1><p>אפשר לסגור את הלשונית ולחזור ל-Catego.</p></div></body></html>";
+    /// <summary>השירות שאליו מתחברים (לדף "התחברת בהצלחה").</summary>
+    public string ServiceName { get; init; } = "קיק";
+    /// <summary>שם התוכנה שאליה חוזרים.</summary>
+    public string AppName { get; init; } = "Catego";
+
+    private string SuccessPage =>
+        "<!doctype html><html dir='rtl' lang='he'><head><meta charset='utf-8'><title>" + AppName + "</title>" + PageStyle +
+        $"</head><body><div><h1>התחברת ל{ServiceName} בהצלחה ✓</h1><p>אפשר לסגור את הלשונית ולחזור ל-{AppName}.</p></div></body></html>";
 
     private static string ErrorPage(IReadOnlyDictionary<string, string> q)
     {

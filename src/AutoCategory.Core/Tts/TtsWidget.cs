@@ -1,9 +1,5 @@
-using System.Net;
-using System.Net.Sockets;
-using System.Text;
 using System.Text.Json;
-using AutoCategory.Core.Models;
-using AutoCategory.Core.Services;
+using AutoCategory.Core.Widgets;
 
 namespace AutoCategory.Core.Tts;
 
@@ -88,138 +84,22 @@ public sealed class TtsWidgetHub
     }
 }
 
-/// <summary>
-/// שרת HTTP קטן על המחשב בלבד (127.0.0.1) שמגיש את הווידג'ט ל-OBS.
-/// בכוונה בלי HttpListener – כדי שלא יידרשו הרשאות מנהל.
-/// </summary>
-public sealed class TtsWidgetServer : IDisposable
+/// <summary>הנתיבים של ווידג'ט ההקראה בשרת הווידג'טים.</summary>
+public static class TtsWidgetRoutes
 {
-    public const int DefaultPort = 47700;
+    public const string Path = "/tts";
 
-    private readonly TtsWidgetHub _hub;
-    private readonly ILoggingService _log;
-    private readonly CancellationTokenSource _cts = new();
-    private TcpListener? _listener;
-
-    public int Port { get; }
-    public bool IsRunning => _listener is not null;
-    public string WidgetUrl => $"http://localhost:{Port}/tts";
-
-    public TtsWidgetServer(TtsWidgetHub hub, ILoggingService log, int port = DefaultPort)
+    public static void Map(WidgetServer server, TtsWidgetHub hub)
     {
-        _hub = hub;
-        _log = log;
-        Port = port;
-    }
-
-    public void Start()
-    {
-        if (_listener is not null) return;
-        try
+        server.Map("GET", Path, _ => WidgetResponse.Html(TtsWidgetPage.Html));
+        server.Map("GET", "/api/tts/state", _ => WidgetResponse.Json(hub.StateJson()));
+        server.Map("GET", "/api/tts/audio", r =>
+            hub.GetAudio(r.Param("key") ?? "") is { } audio ? WidgetResponse.Bytes(audio.ContentType, audio.Data) : WidgetResponse.NotFound);
+        server.Map("POST", "/api/tts/done", r =>
         {
-            var l = new TcpListener(IPAddress.Loopback, Port);
-            l.Start();
-            _listener = l;
-            _ = AcceptLoopAsync(l, _cts.Token);
-        }
-        catch (SocketException ex)
-        {
-            _log.Log(LogLevel.Warning, $"לא ניתן להפעיל את הווידג'ט ל-OBS (פורט {Port} תפוס)", ex.Message);
-        }
-    }
-
-    private async Task AcceptLoopAsync(TcpListener l, CancellationToken ct)
-    {
-        while (!ct.IsCancellationRequested)
-        {
-            TcpClient client;
-            try { client = await l.AcceptTcpClientAsync(ct).ConfigureAwait(false); }
-            catch { break; }
-            _ = HandleAsync(client, ct);
-        }
-    }
-
-    private async Task HandleAsync(TcpClient client, CancellationToken ct)
-    {
-        using var _ = client;
-        try
-        {
-            client.ReceiveTimeout = 5000;
-            var stream = client.GetStream();
-            var (method, target) = await ReadRequestLineAsync(stream, ct).ConfigureAwait(false);
-            if (method is null) return;
-
-            var path = target;
-            var query = "";
-            var q = target.IndexOf('?');
-            if (q >= 0) { path = target[..q]; query = target[(q + 1)..]; }
-            string? Param(string name) =>
-                query.Split('&').Select(p => p.Split('=', 2)).Where(p => p.Length == 2 && p[0] == name)
-                    .Select(p => Uri.UnescapeDataString(p[1])).FirstOrDefault();
-
-            switch (method, path)
-            {
-                case ("GET", "/tts"):
-                case ("GET", "/tts/"):
-                    await WriteAsync(stream, 200, "text/html; charset=utf-8", Encoding.UTF8.GetBytes(TtsWidgetPage.Html), ct);
-                    break;
-                case ("GET", "/api/tts/state"):
-                    await WriteAsync(stream, 200, "application/json; charset=utf-8", Encoding.UTF8.GetBytes(_hub.StateJson()), ct);
-                    break;
-                case ("GET", "/api/tts/audio"):
-                    var audio = _hub.GetAudio(Param("key") ?? "");
-                    if (audio is null) await WriteAsync(stream, 404, "text/plain", Encoding.UTF8.GetBytes("gone"), ct);
-                    else await WriteAsync(stream, 200, audio.ContentType, audio.Data, ct);
-                    break;
-                case ("POST", "/api/tts/done"):
-                    _hub.MarkDone(Param("key") ?? "");
-                    await WriteAsync(stream, 204, "text/plain", Array.Empty<byte>(), ct);
-                    break;
-                default:
-                    await WriteAsync(stream, 404, "text/plain", Encoding.UTF8.GetBytes("not found"), ct);
-                    break;
-            }
-        }
-        catch
-        {
-            // חיבור שנסגר באמצע – לא חשוב
-        }
-    }
-
-    /// <summary>קורא את שורת הבקשה ואת הכותרות (עד 8KB) ומחזיר שיטה + נתיב.</summary>
-    private static async Task<(string? Method, string Target)> ReadRequestLineAsync(NetworkStream stream, CancellationToken ct)
-    {
-        var buffer = new byte[8192];
-        var total = 0;
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        timeout.CancelAfter(TimeSpan.FromSeconds(5));
-        while (total < buffer.Length)
-        {
-            var n = await stream.ReadAsync(buffer.AsMemory(total), timeout.Token).ConfigureAwait(false);
-            if (n == 0) break;
-            total += n;
-            if (Encoding.ASCII.GetString(buffer, 0, total).Contains("\r\n\r\n")) break;
-        }
-        var head = Encoding.ASCII.GetString(buffer, 0, total);
-        var line = head.Split("\r\n", 2)[0].Split(' ');
-        return line.Length >= 2 ? (line[0].ToUpperInvariant(), line[1]) : (null, "");
-    }
-
-    private static async Task WriteAsync(NetworkStream stream, int status, string contentType, byte[] body, CancellationToken ct)
-    {
-        var reason = status switch { 200 => "OK", 204 => "No Content", 404 => "Not Found", _ => "Error" };
-        var header = $"HTTP/1.1 {status} {reason}\r\nContent-Type: {contentType}\r\nContent-Length: {body.Length}\r\n" +
-                     "Cache-Control: no-store\r\nConnection: close\r\n\r\n";
-        await stream.WriteAsync(Encoding.ASCII.GetBytes(header), ct).ConfigureAwait(false);
-        if (body.Length > 0) await stream.WriteAsync(body, ct).ConfigureAwait(false);
-        await stream.FlushAsync(ct).ConfigureAwait(false);
-    }
-
-    public void Dispose()
-    {
-        _cts.Cancel();
-        try { _listener?.Stop(); } catch { }
-        _listener = null;
+            hub.MarkDone(r.Param("key") ?? "");
+            return WidgetResponse.NoContent;
+        });
     }
 }
 

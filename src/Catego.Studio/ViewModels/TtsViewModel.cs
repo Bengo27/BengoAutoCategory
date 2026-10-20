@@ -124,8 +124,8 @@ public sealed class TtsViewModel : ObservableObject, IPageViewModel
     private string _queueSummary = "";
     public string QueueSummary { get => _queueSummary; private set => SetProperty(ref _queueSummary, value); }
 
-    public string WidgetUrl => _s.TtsWidget.WidgetUrl;
-    public bool WidgetRunning => _s.TtsWidget.IsRunning;
+    public string WidgetUrl => _s.TtsWidgetUrl;
+    public bool WidgetRunning => _s.Widgets.IsRunning;
 
     private void Refresh()
     {

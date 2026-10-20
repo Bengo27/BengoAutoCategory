@@ -4,6 +4,7 @@ using AutoCategory.Core.Models;
 using AutoCategory.Core.Platforms.Kick;
 using AutoCategory.Core.Services;
 using AutoCategory.Core.Tts;
+using AutoCategory.Core.Widgets;
 
 sealed class FakeEngine : ITtsEngine
 {
@@ -307,7 +308,8 @@ static class TtsTests
         using var k = new KickEnv();
         var hub = new TtsWidgetHub();
         var port = KickEnv.FreePort();
-        using var server = new TtsWidgetServer(hub, k.Log, port);
+        using var server = new WidgetServer(k.Log, port);
+        TtsWidgetRoutes.Map(server, hub);
         server.Start();
         Assert.True(server.IsRunning, "running");
         using var http = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{port}") };

@@ -30,6 +30,8 @@ public sealed class KickPlatform : IStreamingPlatform, IKickRewardsApi
     public TimeSpan LoginTimeout { get; init; } = TimeSpan.FromMinutes(5);
     /// <summary>ההרשאות שמבקשים מקיק בהתחברות (שונה בין Catego ל-Studio).</summary>
     public string Scopes { get; init; } = KickEndpoints.Scopes;
+    /// <summary>שם התוכנה (מופיע בדף "התחברת בהצלחה").</summary>
+    public string AppName { get; init; } = "Catego";
 
     public KickPlatform(KickAuthStore store, KickApiClient api, ILoggingService log, Action<string> openBrowser,
         Func<DateTime>? utcNow = null)
@@ -93,7 +95,7 @@ public sealed class KickPlatform : IStreamingPlatform, IKickRewardsApi
         var state = KickApiClient.CreateState();
         var url = KickApiClient.BuildAuthorizeUrl(_api.EffectiveClientId!, RedirectUri, Scopes, state, pkce.Challenge);
 
-        using var listener = new LoopbackCallbackListener(CallbackPort);
+        using var listener = new LoopbackCallbackListener(CallbackPort) { AppName = AppName };
         listener.Start();
 
         _log.Log(LogLevel.Info, "נפתח דף ההתחברות של קיק בדפדפן – ממתין לאישור…");
