@@ -5,7 +5,7 @@ const BASE_STYLE = `
 --accent:#2DD4BF;--accent2:#5EEAD4;--warn:#F5B841;--danger:#F2545B;--soft:#163A36}
 *{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--text);font:15px/1.55 "Segoe UI",Arial,sans-serif}
 a{color:var(--accent)}button,.btn{font:inherit;font-weight:600;border:1px solid var(--line);background:var(--hover);color:var(--text);
-border-radius:9px;padding:9px 16px;cursor:pointer;text-decoration:none;display:inline-block}
+border-radius:9px;padding:9px 16px;cursor:pointer;text-decoration:none;display:inline-block;white-space:nowrap}
 button:hover,.btn:hover{border-color:var(--accent)}button:disabled{opacity:.5;cursor:default}
 .primary{background:var(--accent);border-color:var(--accent);color:#0B1514}.primary:hover{background:var(--accent2)}
 .danger{background:transparent;border-color:var(--danger);color:var(--danger)}
@@ -69,8 +69,8 @@ header .who{display:flex;align-items:center;gap:10px}
 main{max-width:900px;margin:0 auto;padding:22px 16px 60px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin-bottom:14px}
 .card h2{font-size:12px;letter-spacing:.06em;color:var(--muted);margin:0 0 12px;font-weight:700}
-.row{display:flex;gap:14px;align-items:center;justify-content:space-between;padding:9px 0}
-.row .lbl{flex:1;min-width:0}.row .lbl small{display:block;color:var(--muted)}
+.row{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;justify-content:space-between;padding:9px 0}
+.row .lbl{flex:1;min-width:200px}.row .lbl small{display:block;color:var(--muted)}
 .actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
 .status-title{font-size:19px;font-weight:700}.dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--muted);margin-inline-end:8px}
 .dot.on{background:var(--accent)}.dot.warn{background:var(--warn)}
@@ -82,7 +82,7 @@ main{max-width:900px;margin:0 auto;padding:22px 16px 60px}
 .chip small{display:block;color:var(--muted);font-weight:400}.chip.sel{border-color:var(--accent);background:var(--soft)}
 .url{display:flex;gap:8px}.url input{direction:ltr;font-family:Consolas,monospace;font-size:13px}
 .q{border-top:1px solid var(--line);padding:10px 0;display:flex;gap:12px;align-items:center}.q:first-child{border-top:0}
-.q .body{flex:1;min-width:0}.q .who{font-weight:700;color:var(--accent)}.q .meta{color:var(--muted);font-size:13px;margin-inline-start:8px}
+.q .body{flex:1;min-width:0}.q .top{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline}.q .who{font-weight:700;color:var(--accent)}.q .meta{color:var(--muted);font-size:13px}
 .q .text{word-wrap:break-word;margin-top:2px}.q.old{opacity:.55}.q button{padding:5px 12px}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}.field label{display:block;font-weight:600;margin-bottom:5px}
 .field small{color:var(--muted)}.num{width:110px!important;text-align:center;direction:ltr}
@@ -116,12 +116,30 @@ border-radius:10px;opacity:0;transition:opacity .3s;pointer-events:none;max-widt
   <div class="row" style="padding-top:0"><div class="lbl"><span class="dot" id="obsDot"></span><span id="obsText"></span></div></div>
   <div class="url"><input type="text" id="obsUrl" readonly><button id="copyBtn">העתק</button><button class="ghost" id="rotateBtn">קישור חדש</button></div>
   <p class="muted" style="margin-bottom:0">ב-OBS: מקורות ← <b>+</b> ← <b>Browser</b> ← מדביקים את הקישור, רוחב <b>1920</b> וגובה <b>400</b>, ומסמנים
-  <b>Control audio via OBS</b> כדי לקבל פס עוצמה משלו. <b>הקישור אישי – אל תשתף אותו.</b> ההקראות מתחילות רק כשהווידג'ט פתוח.</p>
+  <b>Control audio via OBS</b> (במצב שרת). <b>הקישור אישי – אל תשתף אותו.</b></p>
 </section>
 
 <section class="card">
   <div class="row" style="padding-top:0"><h2 style="margin:0">תור ההקראות</h2><span class="muted" id="queueSummary"></span></div>
   <div id="queue"></div>
+</section>
+
+<section class="card">
+  <h2>איך יוצא הקול</h2>
+  <div class="chips" id="modes">
+    <button class="chip" data-mode="edge">מהלשונית ב-Edge<small>חינם, בלי הגבלה · מומלץ</small></button>
+    <button class="chip" data-mode="server">מהשרת (Azure)<small>בלי לשונית פתוחה · מכסה חודשית</small></button>
+  </div>
+  <div id="edgePanel" style="margin-top:12px">
+    <div class="row" style="padding-top:0"><div class="lbl"><span class="dot" id="spkDot"></span><span id="spkText"></span>
+      <small id="spkHint"></small></div>
+      <button class="primary" id="speakerBtn">🔊 הפעל הקראה מהלשונית הזו</button></div>
+    <p class="muted" style="margin:0">משאירים את הלשונית הזו פתוחה ב-Edge <b>במחשב של השידור</b> (אפשר למזער, לא לסגור).
+    OBS קולט את הקול דרך Desktop Audio – או, כדי לקבל פס עוצמה נפרד: מקור <b>Application Audio Capture</b> ← <b>msedge.exe</b>.
+    הווידג'ט ב-OBS ממשיך להציג את ההודעה על המסך.</p>
+  </div>
+  <p class="muted hidden" id="serverPanel" style="margin:12px 0 0">הווידג'ט ב-OBS מנגן את הקול בעצמו. ב-Browser Source סמן <b>Control audio via OBS</b> כדי לקבל פס עוצמה משלו.</p>
+  <p class="notice hidden" id="serverOff">מצב שרת עוד לא זמין – בעל האתר צריך להגדיר מפתח Azure.</p>
 </section>
 
 <section class="card">
@@ -132,7 +150,7 @@ border-radius:10px;opacity:0;transition:opacity .3s;pointer-events:none;max-widt
   </div>
   <div class="grid2" style="margin-top:12px">
     <div class="field"><label>מהירות: <span id="rateV"></span></label><input type="range" id="rate" min="-50" max="50" step="5"></div>
-    <div class="field"><label>עוצמה ב-OBS: <span id="volumeV"></span></label><input type="range" id="volume" min="0" max="100" step="5"></div>
+    <div class="field"><label>עוצמה: <span id="volumeV"></span></label><input type="range" id="volume" min="0" max="100" step="5"></div>
   </div>
   <div class="field" style="margin-top:10px"><label>טקסט לבדיקה</label><input type="text" id="testText" value="בדיקה, אחת שתיים. ככה ישמעו ההודעות בשידור!"></div>
   <div class="actions"><button class="primary" id="hearBtn">▶ השמע כאן</button><button id="obsTestBtn">שלח בדיקה ל-OBS</button></div>
@@ -167,7 +185,7 @@ border-radius:10px;opacity:0;transition:opacity .3s;pointer-events:none;max-widt
 </main>
 <div id="toast"></div>
 <script>
-const $=id=>document.getElementById(id);let state=null,formLoaded=false,voice="he-IL-HilaNeural";
+const $=id=>document.getElementById(id);let state=null,formLoaded=false,voice="he-IL-HilaNeural",mode="edge",speakerWs=null,speakerOn=false;
 const STATUS={playing:"🔊 מוקרא עכשיו",waiting:"בתור",approval:"ממתין לאישור",done:"הוקרא",skipped:"דולג",rejected:"נדחה – הנקודות הוחזרו",failed:"נכשל"};
 function toast(t,bad){const e=$("toast");e.textContent=t;e.className="show"+(bad?" bad":"");clearTimeout(e._t);e._t=setTimeout(()=>e.className="",3500);}
 async function post(op,body={}){const r=await fetch("/api/"+op,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
@@ -175,14 +193,45 @@ async function post(op,body={}){const r=await fetch("/api/"+op,{method:"POST",he
  if(ct.includes("audio"))return r.blob();const j=await r.json().catch(()=>({}));if(!r.ok)throw Error(j.error||"הפעולה נכשלה");if(j.state)render(j.state);return j;}
 function act(id,fn){$(id).onclick=async()=>{const b=$(id);b.disabled=true;try{await fn();}catch(e){toast(e.message,true);}finally{b.disabled=false;}};}
 function setVoice(v){voice=v;document.querySelectorAll(".chip").forEach(c=>c.classList.toggle("sel",c.dataset.voice===v));}
-document.querySelectorAll(".chip").forEach(c=>c.onclick=()=>setVoice(c.dataset.voice));
+document.querySelectorAll("#voices .chip").forEach(c=>c.onclick=()=>setVoice(c.dataset.voice));
+function setMode(m){mode=m;document.querySelectorAll("#modes .chip").forEach(c=>c.classList.toggle("sel",c.dataset.mode===m));
+ $("edgePanel").classList.toggle("hidden",m!=="edge");$("serverPanel").classList.toggle("hidden",m!=="server");}
+document.querySelectorAll("#modes .chip").forEach(c=>c.onclick=async()=>{const m=c.dataset.mode;if(m==="server"&&state&&!state.serverTts){toast("מצב שרת עוד לא הוגדר (חסר מפתח Azure)",true);return;}
+ setMode(m);try{await post("settings",{settings:{playback:m}});toast(m==="edge"?"הקול יוצא מהלשונית ב-Edge":"הקול יוצא מהשרת דרך הווידג'ט");}catch(e){toast(e.message,true);}});
+// ── הקראה מהלשונית (Web Speech של הדפדפן – ב-Edge יש את Hila ו-Avri) ──
+const isEdge=navigator.userAgent.includes("Edg/");
+function heVoices(){return(speechSynthesis.getVoices()||[]).filter(v=>/^(he|iw)/i.test(v.lang));}
+function pickVoice(id){const want=id==="he-IL-AvriNeural"?/avri/i:/hila/i;const he=heVoices();return he.find(v=>want.test(v.name))||he.find(v=>/natural|online/i.test(v.name))||he[0]||null;}
+let utter=null;
+function speak(text,voiceId,rate,volume,onEnd){if(!("speechSynthesis" in window)){onEnd("no-speech");return;}
+ const v=pickVoice(voiceId);if(!v){onEnd("no-voice");return;}speechSynthesis.cancel();
+ const u=new SpeechSynthesisUtterance(text);u.voice=v;u.lang=v.lang;u.rate=Math.max(.5,Math.min(2,1+rate/100));u.volume=volume;
+ let finished=false;const end=e=>{if(finished)return;finished=true;onEnd(e);};u.onend=()=>end(null);u.onerror=ev=>end(ev.error==="interrupted"||ev.error==="canceled"?null:"speech-error");
+ utter=u;speechSynthesis.speak(u);}
+function speakerStatus(){const he=heVoices();const good=he.some(v=>/hila|avri/i.test(v.name));
+ $("spkDot").className="dot "+(speakerOn?"on":"warn");
+ $("spkText").textContent=speakerOn?"הלשונית הזו מקריאה את ההודעות ✓":(state&&state.speakers?"לשונית אחרת מקריאה ✓":"אף לשונית לא מקריאה כרגע");
+ $("spkHint").textContent=!("speechSynthesis" in window)?"הדפדפן הזה לא יכול להקריא.":!isEdge?"מומלץ לפתוח את הדף ב-Microsoft Edge – רק בו יש את Hila ו-Avri.":!he.length?"טוען קולות…":good?"נמצאו הקולות Hila ו-Avri":"לא נמצאו Hila/Avri – יוקרא בקול עברי אחר";
+ $("speakerBtn").textContent=speakerOn?"⏹ הפסק להקריא מכאן":"🔊 הפעל הקראה מהלשונית הזו";}
+if("speechSynthesis" in window)speechSynthesis.onvoiceschanged=speakerStatus;
+let spkRetry=1000;
+function connectSpeaker(){speakerWs=new WebSocket((location.protocol==="https:"?"wss://":"ws://")+location.host+"/api/ws?speaker=1");
+ speakerWs.onmessage=e=>{spkRetry=1000;let m;try{m=JSON.parse(e.data);}catch{return;}
+  if(m.type==="speak"){const id=m.id;speak(m.text,m.voice,m.rate,m.volume,err=>{try{speakerWs.send(JSON.stringify({type:"done",id,error:err||undefined}));}catch{}});}
+  else if(m.type==="stop"){speechSynthesis.cancel();}};
+ speakerWs.onclose=e=>{if(!speakerOn)return;if(e.code===4001){location.href="/";return;}setTimeout(connectSpeaker,spkRetry);spkRetry=Math.min(spkRetry*2,15000);};}
+$("speakerBtn").onclick=()=>{if(speakerOn){speakerOn=false;try{speakerWs.close();}catch{}speechSynthesis.cancel();speakerStatus();return;}
+ // הקלקה הזו גם "מאשרת" לדפדפן להשמיע קול מהדף
+ const warm=new SpeechSynthesisUtterance(" ");warm.volume=0;speechSynthesis.speak(warm);
+ speakerOn=true;connectSpeaker();speakerStatus();toast("הלשונית הזו תקריא את ההודעות – השאר אותה פתוחה");};
+window.addEventListener("beforeunload",e=>{if(speakerOn){e.preventDefault();e.returnValue="";}});
 function showRange(){const r=+$("rate").value;$("rateV").textContent=r===0?"רגילה":(r>0?"+":"")+r+"%";$("volumeV").textContent=$("volume").value+"%";}
 $("rate").oninput=$("volume").oninput=showRange;
 function loadForm(s){for(const k of["rewardTitle","rewardCost","rewardDescription","template","maxChars","gapSeconds","maxAgeMinutes","rate","volume"])$(k).value=s[k];
  $("manualApproval").checked=s.manualApproval;$("blockLinks").checked=s.blockLinks;$("banned").value=(s.banned||[]).join("\\n");setVoice(s.voice);showRange();}
 function collect(){return{rewardTitle:$("rewardTitle").value,rewardCost:+$("rewardCost").value,rewardDescription:$("rewardDescription").value,template:$("template").value,
  maxChars:+$("maxChars").value,gapSeconds:+$("gapSeconds").value,maxAgeMinutes:+$("maxAgeMinutes").value,rate:+$("rate").value,volume:+$("volume").value,
- manualApproval:$("manualApproval").checked,blockLinks:$("blockLinks").checked,voice,banned:$("banned").value.split(/\\n|,/).map(x=>x.trim()).filter(Boolean)};}
+ manualApproval:$("manualApproval").checked,blockLinks:$("blockLinks").checked,voice,playback:mode,banned:$("banned").value.split(/\\n|,/).map(x=>x.trim()).filter(Boolean)};}
 function render(s){state=s;const st=s.settings;if(!formLoaded){loadForm(st);formLoaded=true;}
  $("who").textContent=s.user?.name||"";$("enabled").checked=st.enabled;$("obsUrl").value=location.origin+s.overlayPath;
  $("rewardBtn").textContent=s.rewardId?"עדכן את הפרס בקיק":"צור פרס בקיק";$("pauseBtn").textContent=s.paused?"▶ המשך תור":"⏸ השהה תור";
@@ -195,12 +244,13 @@ function render(s){state=s;const st=s.settings;if(!formLoaded){loadForm(st);form
  else{title="ההקראה כבויה";text="הפרס בקיק מושהה – צופים לא יכולים לקנות אותו עד שתדליק.";}
  $("statusTitle").textContent=title;$("statusText").textContent=text;$("dot").className="dot "+dot;
  $("error").textContent=s.error||"";$("error").classList.toggle("hidden",!s.error);
+ speakerStatus();$("serverOff").classList.toggle("hidden",s.serverTts||st.playback!=="server");
  $("obsDot").className="dot "+(s.overlays?"on":"warn");$("obsText").textContent=s.overlays?"הווידג'ט פתוח ב-OBS ✓":"הווידג'ט לא פתוח – הוסף אותו ל-OBS (או פתח את OBS)";
  const q=$("queue");q.replaceChildren();const open=s.items.filter(i=>["playing","waiting","approval"].includes(i.status)).length;
  $("queueSummary").textContent=open?open+" ממתינים":"התור ריק";
  if(!s.items.length){const p=document.createElement("p");p.className="muted";p.style.margin="0";p.textContent="עוד אין הודעות. ברגע שצופה יקנה את הפרס – ההודעה תופיע כאן.";q.append(p);}
  for(const i of s.items){const row=document.createElement("div");row.className="q"+(["playing","waiting","approval"].includes(i.status)?"":" old");
-  const body=document.createElement("div");body.className="body";const top=document.createElement("div");
+  const body=document.createElement("div");body.className="body";const top=document.createElement("div");top.className="top";
   const who=document.createElement("span");who.className="who";who.textContent=i.user;const meta=document.createElement("span");meta.className="meta";
   meta.textContent=new Date(i.at).toLocaleTimeString("he-IL",{hour:"2-digit",minute:"2-digit"})+" · "+(STATUS[i.status]||i.status)+(i.note?" · "+i.note:"");
   top.append(who,meta);const tx=document.createElement("div");tx.className="text";tx.textContent=i.text;body.append(top,tx);row.append(body);
@@ -213,8 +263,9 @@ act("pauseBtn",()=>post("pause",{paused:!state?.paused}));act("skipBtn",()=>post
 act("saveBtn",async()=>{await post("settings",{settings:collect()});$("saved").textContent="נשמר ב-"+new Date().toLocaleTimeString("he-IL");formLoaded=false;render(state);});
 act("copyBtn",async()=>{await navigator.clipboard.writeText($("obsUrl").value);toast("הקישור הועתק ✓ – הדבק אותו ב-OBS");});
 act("rotateBtn",async()=>{if(!confirm("ליצור קישור חדש? הקישור הישן יפסיק לעבוד, וצריך להדביק את החדש ב-OBS."))return;await post("rotate");toast("נוצר קישור חדש");});
-act("hearBtn",async()=>{const blob=await post("voice-test",{text:$("testText").value,voice,rate:+$("rate").value});const a=new Audio(URL.createObjectURL(blob));a.volume=+$("volume").value/100;await a.play();});
-act("obsTestBtn",async()=>{await post("settings",{settings:collect()});await post("test",{text:$("testText").value});toast(state?.overlays?"נשלח ל-OBS":"נשמר – יושמע כשהווידג'ט ייפתח ב-OBS");});
+act("hearBtn",async()=>{if(mode==="edge"){await new Promise(res=>speak($("testText").value||"בדיקת קול",voice,+$("rate").value,+$("volume").value/100,err=>{if(err)toast(err==="no-voice"?"לא נמצא קול עברי בדפדפן – פתח ב-Edge":"ההקראה נכשלה",true);res();}));return;}
+ const blob=await post("voice-test",{text:$("testText").value,voice,rate:+$("rate").value});const a=new Audio(URL.createObjectURL(blob));a.volume=+$("volume").value/100;await a.play();});
+act("obsTestBtn",async()=>{await post("settings",{settings:collect()});await post("test",{text:$("testText").value});toast(mode==="edge"?(state?.speakers?"נשלח – תשמע מהלשונית המקריאה ותראה ב-OBS":"נשמר – יוקרא כשתפעיל הקראה מהלשונית"):(state?.overlays?"נשלח ל-OBS":"נשמר – יושמע כשהווידג'ט ייפתח ב-OBS"));});
 let retry=1000;function connect(){const ws=new WebSocket((location.protocol==="https:"?"wss://":"ws://")+location.host+"/api/ws");
  ws.onmessage=e=>{retry=1000;try{const m=JSON.parse(e.data);if(m.type==="state")render(m.state);}catch{}};
  ws.onclose=e=>{if(e.code===4001){location.href="/";return;}setTimeout(connect,retry);retry=Math.min(retry*2,15000);};}
@@ -242,9 +293,10 @@ if(new URLSearchParams(location.search).has("demo")){show("Bengo23","ככה תי
 else{(function connect(){ws=new WebSocket((location.protocol==="https:"?"wss://":"ws://")+location.host+base+"/ws");
  ws.onopen=()=>{retry=1000;};
  ws.onmessage=e=>{let m;try{m=JSON.parse(e.data);}catch{return;}
-  if(m.type==="play"){current=m.id;show(m.user,m.text);audio.src=base+"/audio?id="+encodeURIComponent(m.id);audio.volume=Math.max(0,Math.min(1,m.volume));
+  if(m.type==="play"&&m.silent){current=m.id;show(m.user,m.text);}
+  else if(m.type==="play"){current=m.id;show(m.user,m.text);audio.src=base+"/audio?id="+encodeURIComponent(m.id);audio.volume=Math.max(0,Math.min(1,m.volume));
    const id=m.id;audio.onended=()=>done(id);audio.onerror=()=>done(id);audio.play().catch(()=>done(id));}
-  else if(m.type==="stop"&&m.id===current){hide();}};
+  else if((m.type==="stop"||m.type==="end")&&m.id===current){hide();}};
  ws.onclose=e=>{if(e.code===4003)return;setTimeout(connect,retry);retry=Math.min(retry*2,15000);};})();}
 </script></body></html>`;
 }

@@ -33,6 +33,15 @@ export class ChannelDO {
   /** חיבורים פתוחים (בלי אלה שבאמצע סגירה). */
   sockets(role) { return this.state.getWebSockets(role).filter((ws) => ws.readyState !== 2 && ws.readyState !== 3); }
 
+  /** מצב Edge: הקול יוצא מלשונית של לוח הבקרה. מצב שרת: הווידג'ט ב-OBS מנגן MP3 מ-Azure. */
+  edgeMode() { return this.data.settings.playback !== "server"; }
+
+  /** יש מי שישמיע את הקול עכשיו? */
+  canPlay() { return this.edgeMode() ? this.sockets("speaker").length > 0 : this.sockets("overlay").length > 0; }
+
+  /** משהו פתוח (ווידג'ט או לשונית מקריאה) – כדאי לבדוק בקשות. */
+  anyOutput() { return this.sockets("overlay").length > 0 || this.sockets("speaker").length > 0; }
+
   // ───────────────────────── ניתוב ─────────────────────────
 
   async fetch(request) {
@@ -320,7 +329,11 @@ export class ChannelDO {
       at: this.now(), status: "waiting", note: null, test: true,
     });
     await this.save();
-    if (!this.sockets("overlay").length) this.data.error = "הווידג'ט לא פתוח ב-OBS – הבדיקה תושמע כשהוא ייפתח.";
+    if (!this.canPlay()) {
+      this.data.error = this.edgeMode()
+        ? "אף לשונית לא מקריאה כרגע – לחץ \"הפעל הקראה מהלשונית הזו\" בלוח הבקרה (ב-Edge)."
+        : "הווידג'ט לא פתוח ב-OBS – הבדיקה תושמע כשהוא ייפתח.";
+    }
     await this.pump();
   }
 
@@ -342,7 +355,7 @@ export class ChannelDO {
   async pump() {
     const d = this.data;
     if (d.playing) return;
-    if (!this.sockets("overlay").length) { await this.scheduleAlarm(); return; }
+    if (!this.canPlay()) { await this.scheduleAlarm(); return; }
     if (this.now() < (d.gapUntil || 0)) { await this.scheduleAlarm(); return; }
     const item = d.items.find((i) => i.status === "waiting" && (i.test || (d.settings.enabled && !d.paused)));
     if (!item) { await this.scheduleAlarm(); return; }
@@ -351,6 +364,21 @@ export class ChannelDO {
     d.playing = { id: item.id, deadline: this.now() + 60_000 };
     await this.save();
     this.broadcast();
+
+    const s0 = d.settings;
+    if (this.edgeMode()) {
+      // הקול מהלשונית ב-Edge (חינם), והווידג'ט ב-OBS רק מציג את ההודעה
+      const spoken = applyTemplate(s0.template, item.user, item.text);
+      d.playing.deadline = this.now() + Math.ceil(spoken.length / 10) * 1000 + 15_000;
+      await this.save();
+      const speaker = this.sockets("speaker")[0];
+      try {
+        speaker.send(JSON.stringify({ type: "speak", id: item.id, text: spoken, voice: s0.voice, rate: s0.rate, volume: s0.volume / 100 }));
+      } catch {}
+      this.sendOverlays({ type: "play", id: item.id, user: item.user, text: item.text, silent: true });
+      await this.scheduleAlarm();
+      return;
+    }
 
     let mp3;
     try {
@@ -373,16 +401,22 @@ export class ChannelDO {
     await this.scheduleAlarm();
   }
 
-  async finish(id, status) {
+  async finish(id, status, note = null) {
     const d = this.data;
     if (!d.playing || d.playing.id !== id) return;
     const item = d.items.find((i) => i.id === id);
     d.playing = null;
     this.audio.delete(id);
+    this.sendOverlays({ type: "end", id });
     d.gapUntil = this.now() + d.settings.gapSeconds * 1000;
     if (item) {
       item.status = status;
-      await this.accept(item); // הוקרא או דולג → הנקודות נוצלו
+      if (note) item.note = note;
+      if (status === "failed") {
+        if (!item.test) await this.kick((t) => resolveRedemptions(t, "reject", [item.id])).catch(() => {}); // מחזירים נקודות
+      } else {
+        await this.accept(item); // הוקרא או דולג → הנקודות נוצלו
+      }
     }
     this.trim();
     await this.save();
@@ -394,6 +428,7 @@ export class ChannelDO {
     const p = this.data.playing;
     if (!p) return;
     this.sendOverlays({ type: "stop", id: p.id });
+    for (const ws of this.sockets("speaker")) try { ws.send(JSON.stringify({ type: "stop", id: p.id })); } catch {}
     await this.finish(p.id, "skipped");
   }
 
@@ -403,7 +438,7 @@ export class ChannelDO {
     if (!d) return;
     if (d.playing && this.now() >= d.playing.deadline) await this.finish(d.playing.id, "done");
     const interval = d.webhook ? POLL_WITH_WEBHOOK : POLL_WITHOUT_WEBHOOK;
-    if (this.sockets("overlay").length && d.settings.enabled && d.rewardId && this.now() - (d.lastPoll || 0) >= interval) {
+    if (this.anyOutput() && d.settings.enabled && d.rewardId && this.now() - (d.lastPoll || 0) >= interval) {
       await this.poll();
     }
     await this.pump();
@@ -419,7 +454,7 @@ export class ChannelDO {
     const times = [];
     if (d.playing) times.push(d.playing.deadline);
     if ((d.gapUntil || 0) > this.now()) times.push(d.gapUntil);
-    if (this.sockets("overlay").length && d.settings.enabled && d.rewardId) {
+    if (this.anyOutput() && d.settings.enabled && d.rewardId) {
       times.push((d.lastPoll || 0) + (d.webhook ? POLL_WITH_WEBHOOK : POLL_WITHOUT_WEBHOOK));
     }
     if (times.length) await this.state.storage.setAlarm(Math.max(this.now() + 500, Math.min(...times)));
@@ -439,14 +474,14 @@ export class ChannelDO {
 
   acceptSocket(request, url) {
     if (request.headers.get("Upgrade") !== "websocket") return new Response("expected websocket", { status: 426 });
-    const role = url.searchParams.get("role") === "overlay" ? "overlay" : "dashboard";
+    const asked = url.searchParams.get("role");
+    const role = asked === "overlay" ? "overlay" : asked === "speaker" ? "speaker" : "dashboard";
     if (role === "overlay" && !this.checkKey(url.searchParams.get("key"))) return new Response("forbidden", { status: 403 });
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair);
     this.state.acceptWebSocket(server, [role]);
-    if (role === "dashboard") {
-      server.send(JSON.stringify({ type: "state", state: this.view() }));
-    } else {
+    if (role !== "overlay") server.send(JSON.stringify({ type: "state", state: this.view() }));
+    if (role !== "dashboard") {
       // ווידג'ט נפתח: לבדוק מיד בקשות ולהמשיך את התור
       this.data.lastPoll = 0;
       const work = (async () => { this.broadcast(); await this.tick(); await this.scheduleAlarm(); })().catch(() => {});
@@ -458,7 +493,8 @@ export class ChannelDO {
   async webSocketMessage(ws, message) {
     let m;
     try { m = JSON.parse(typeof message === "string" ? message : new TextDecoder().decode(message)); } catch { return; }
-    if (m.type === "done" && m.id) await this.finish(String(m.id), "done");
+    // הווידג'ט (מצב שרת) או הלשונית המקריאה (מצב Edge) מדווחים שההקראה הסתיימה
+    if (m.type === "done" && m.id) await this.finish(String(m.id), m.error ? "failed" : "done", m.error ? String(m.error).slice(0, 120) : null);
   }
 
   async webSocketClose(ws) {
@@ -480,7 +516,7 @@ export class ChannelDO {
   broadcast() {
     if (!this.data) return;
     const text = JSON.stringify({ type: "state", state: this.view() });
-    for (const ws of this.sockets("dashboard")) try { ws.send(text); } catch {}
+    for (const ws of [...this.sockets("dashboard"), ...this.sockets("speaker")]) try { ws.send(text); } catch {}
   }
 
   serveAudio(url) {
@@ -503,6 +539,8 @@ export class ChannelDO {
       rewardId: d.rewardId,
       webhook: d.webhook,
       overlays: this.sockets("overlay").length,
+      speakers: this.sockets("speaker").length,
+      serverTts: !!(this.env.AZURE_SPEECH_KEY && this.env.AZURE_SPEECH_REGION),
       overlayPath: `/o/${d.user?.id}-${d.overlayKey}`,
       paused: !!d.paused,
       playingId: d.playing?.id || null,

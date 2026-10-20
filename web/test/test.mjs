@@ -110,7 +110,7 @@ env.CHANNEL = {
   },
 };
 
-async function freshChannel() {
+async function freshChannel(playback = "server") {
   kick.reset();
   objects.clear();
   const stub = env.CHANNEL.get("123");
@@ -121,6 +121,7 @@ async function freshChannel() {
   };
   await call("init", { user: { id: 123, name: "Bengo23", slug: "bengo23" },
     tokens: { access: kick.access, refresh: kick.refresh, expires: Date.now() + 3600_000, scope: "user:read channel:read channel:rewards:read channel:rewards:write events:subscribe" } });
+  await call("settings", { settings: { playback } });
   return { o, call, d: () => o.obj.data };
 }
 const redeem = (id, userId, input, username = "", minutesAgo = 0, rewardId = "01REWARD1") =>
@@ -272,6 +273,34 @@ await test("no OBS open → waits; polling fallback; test message; failure refun
   check(t && t.user === "בדיקה", "test goes to OBS");
   await o.obj.webSocketMessage(ws, JSON.stringify({ type: "done", id: t.id }));
   check(!kick.accepted.includes(t.id), "test never touches Kick");
+});
+
+await test("Edge mode: tab speaks for free, OBS shows the card", async () => {
+  const { o, call, d } = await freshChannel("edge");
+  check(defaultSettings().playback === "edge", "Edge is the default");
+  await call("enable", { enabled: true });
+  const overlay = o.state.addSocket("overlay");
+  await call("webhook", redeem("E1", 1, "שלום לכולם", "dani"));
+  check(!overlay.last("play"), "no speaker tab → waits (overlay alone can't speak in Edge mode)");
+  const tab = o.state.addSocket("speaker");
+  await o.obj.alarm();
+  const speak = tab.last("speak");
+  check(speak && speak.id === "E1" && speak.text === "dani אומר: שלום לכולם" && speak.voice === "he-IL-HilaNeural", "tab got speak");
+  check(overlay.last("play")?.silent === true && overlay.last("play").user === "dani", "overlay shows card silently");
+  check(!kick.calls.some((c) => c.url.includes("tts.speech")), "Azure never called in Edge mode");
+  await o.obj.webSocketMessage(tab, JSON.stringify({ type: "done", id: "E1" }));
+  check(kick.accepted.includes("E1") && overlay.last("end")?.id === "E1", "accepted + overlay hides card");
+  // לשונית בלי קול עברי → נכשל ומחזירים נקודות
+  d().gapUntil = 0;
+  await call("webhook", redeem("E2", 2, "היי", "x"));
+  await o.obj.webSocketMessage(tab, JSON.stringify({ type: "done", id: "E2", error: "no-voice" }));
+  check(kick.rejected.includes("E2") && d().items.find((i) => i.id === "E2").status === "failed", "no voice → refund");
+  // דילוג עוצר גם את הלשונית
+  d().gapUntil = 0;
+  await call("webhook", redeem("E3", 3, "ארוך ארוך", "y"));
+  await call("skip", {});
+  check(tab.last("stop")?.id === "E3" && kick.accepted.includes("E3"), "skip stops the tab");
+  check((await call("state")).json.speakers === 1, "state reports speaker tabs");
 });
 
 await test("token refresh and expired login", async () => {

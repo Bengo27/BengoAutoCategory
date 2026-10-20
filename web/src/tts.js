@@ -16,6 +16,8 @@ export function defaultSettings() {
     rewardCost: 500,
     rewardDescription: "כתבו הודעה והיא תוקרא בקול בשידור",
     voice: "he-IL-HilaNeural",
+    // "edge" = הקול מלשונית ב-Edge (חינם, בלי הגבלה) · "server" = Azure דרך הווידג'ט ב-OBS
+    playback: "edge",
     rate: 0,
     volume: 80,
     template: "{user} אומר: {text}",
@@ -40,6 +42,7 @@ export function sanitizeSettings(input, old = defaultSettings()) {
   if ("rewardCost" in i) s.rewardCost = clamp(i.rewardCost, 1, 10_000_000, s.rewardCost);
   if ("rewardDescription" in i) s.rewardDescription = typeof i.rewardDescription === "string" ? i.rewardDescription.trim().slice(0, 200) : s.rewardDescription;
   if ("voice" in i && VOICES[i.voice]) s.voice = i.voice;
+  if ("playback" in i && (i.playback === "edge" || i.playback === "server")) s.playback = i.playback;
   if ("rate" in i) s.rate = clamp(i.rate, -50, 50, s.rate);
   if ("volume" in i) s.volume = clamp(i.volume, 0, 100, s.volume);
   if ("template" in i) s.template = typeof i.template === "string" && i.template.includes("{text}") ? i.template.trim().slice(0, 100) : d.template;

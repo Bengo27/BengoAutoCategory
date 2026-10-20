@@ -128,7 +128,7 @@ const POST_OPS = new Set(["settings", "enable", "reward", "skip", "pause", "appr
 
 async function api(request, env, url, uid) {
   const op = url.pathname.slice("/api/".length);
-  if (op === "ws") return call(env, uid, "ws", { query: "?role=dashboard", request });
+  if (op === "ws") return call(env, uid, "ws", { query: url.searchParams.get("speaker") === "1" ? "?role=speaker" : "?role=dashboard", request });
   if (op === "state" && request.method === "GET") return passthrough(await call(env, uid, "state"));
   if (request.method === "POST" && POST_OPS.has(op)) {
     if (!sameOrigin(request, url)) return json({ error: "forbidden" }, 403);
