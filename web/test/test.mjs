@@ -492,6 +492,7 @@ await test("alerts (kicks / follow / sub / gift)", async () => {
   await o.obj.tick();
   const play = ws.last("play");
   const az = kick.calls.filter((c) => c.url.includes("tts.speech")).pop();
+  check(play?.hidden === true, "alert: sound only by default (no TTS box over Botrix)");
   check(play?.id === "alert-f2" && az?.body.includes("תודה על העוקב, newguy!") && !az.body.includes("אומר:"), "alert spoken as-is (not with chat template)");
   await call("alert", { kind: "follow", id: "f2", user: "newguy" });
   check(d().items.filter((i) => i.id === "alert-f2").length === 1, "duplicate alert ignored");

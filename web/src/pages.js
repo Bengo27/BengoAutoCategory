@@ -81,8 +81,8 @@ if(new URLSearchParams(location.search).has("demo")){show("Bengo23","ככה תי
 else{(function connect(){ws=new WebSocket((location.protocol==="https:"?"wss://":"ws://")+location.host+base+"/ws");
  ws.onopen=()=>{retry=1000;};
  ws.onmessage=e=>{let m;try{m=JSON.parse(e.data);}catch{return;}
-  if(m.type==="play"&&m.silent){current=m.id;show(m.user,m.text);}
-  else if(m.type==="play"){current=m.id;show(m.user,m.text);audio.src=base+"/audio?id="+encodeURIComponent(m.id);audio.volume=Math.max(0,Math.min(1,m.volume));
+  if(m.type==="play"&&m.silent){current=m.id;if(!m.hidden)show(m.user,m.text);}
+  else if(m.type==="play"){current=m.id;if(!m.hidden)show(m.user,m.text);audio.src=base+"/audio?id="+encodeURIComponent(m.id);audio.volume=Math.max(0,Math.min(1,m.volume));
    const id=m.id;audio.onended=()=>done(id);audio.onerror=()=>done(id);audio.play().catch(()=>done(id));}
   else if((m.type==="stop"||m.type==="end")&&m.id===current){hide();}};
  ws.onclose=e=>{if(e.code===4003)return;setTimeout(connect,retry);retry=Math.min(retry*2,15000);};})();}

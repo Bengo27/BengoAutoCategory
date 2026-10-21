@@ -185,8 +185,10 @@ const BODY = `
     <div class="tab" id="tab-alerts">
       <div class="card"><h2>🔔 הקראת אירועים</h2>
         <p class="muted" style="margin:0">ההתראה על המסך נשארת ב-Botrix – כאן רק הקול. ההקראות נכנסות לאותו תור של הפרסים והצ'אט, בלי התנגשויות.
-        כפתור <b>🧪 בדיקה</b> שולח אירוע מדומה ושומעים אותו מיד (גם כשהמתג כבוי).</p>
+        כפתור <b>🧪 בדיקה</b> שולח אירוע מדומה ושומעים אותו מיד (גם כשהמתג כבוי). בבדיקה Botrix לא יקפיץ התראה – הוא מגיב רק לאירועים אמיתיים.</p>
         <p class="notice hidden" id="kicksRelogin">בשביל Kicks קיק צריך הרשאה נוספת: <a href="#settings">התנתק</a> והתחבר שוב לאתר פעם אחת.</p>
+        <div class="row"><div class="lbl">להציג גם את התיבה של ה-TTS ב-OBS<small>כבוי = רק קול, כדי שלא תופיע תיבה על ההתראה של Botrix.</small></div>
+          <label class="switch"><input type="checkbox" id="alertShowCard"><span></span></label></div>
         <p class="muted" id="alertLast" style="margin:10px 0 0"></p>
       </div>
       <div class="card"><div class="row" style="padding-top:0"><div class="lbl"><b>💚 Kicks</b> <span class="dot" id="as-kicks"></span><small id="asV-kicks">כשצופה שולח Kicks – מקריאים את ההודעה שלו.</small></div>
@@ -355,14 +357,14 @@ const FIELDS=["rewardTitle","rewardCost","rewardDescription","template","maxChar
  "alertKicksMin","alertKicksTemplate","alertFollowTemplate","alertSubTemplate","alertGiftTemplate"];
 const ALERTS=[["kicks","Kicks"],["follow","Follow"],["sub","Sub"],["gift","Gift"]];
 function loadForm(s){for(const k of FIELDS)$(k).value=s[k];$("manualApproval").checked=s.manualApproval;$("blockLinks").checked=s.blockLinks;
- $("chatEnabled").checked=!!s.chatEnabled;for(const [,K] of ALERTS)$("alert"+K).checked=!!s["alert"+K];$("banned").value=(s.banned||[]).join("\n");setVoice(s.voice);setGVoice(s.geminiVoice||"Kore");setWho(s.chatWho||"all");setMode(s.playback||"edge");showRange();$("chatPrefix").oninput();}
+ $("chatEnabled").checked=!!s.chatEnabled;for(const [,K] of ALERTS)$("alert"+K).checked=!!s["alert"+K];$("alertShowCard").checked=!!s.alertShowCard;$("banned").value=(s.banned||[]).join("\n");setVoice(s.voice);setGVoice(s.geminiVoice||"Kore");setWho(s.chatWho||"all");setMode(s.playback||"edge");showRange();$("chatPrefix").oninput();}
 function collect(){return{rewardTitle:$("rewardTitle").value,rewardCost:+$("rewardCost").value,rewardDescription:$("rewardDescription").value,template:$("template").value,
  maxChars:+$("maxChars").value,gapSeconds:+$("gapSeconds").value,maxAgeMinutes:+$("maxAgeMinutes").value,rate:+$("rate").value,volume:+$("volume").value,
  manualApproval:$("manualApproval").checked,blockLinks:$("blockLinks").checked,voice,geminiVoice:gvoice,playback:mode,chatEnabled:$("chatEnabled").checked,
  chatPrefix:$("chatPrefix").value.trim(),chatCooldown:+$("chatCooldown").value,
  alertKicksMin:+$("alertKicksMin").value,alertKicksTemplate:$("alertKicksTemplate").value,alertFollowTemplate:$("alertFollowTemplate").value,
  alertSubTemplate:$("alertSubTemplate").value,alertGiftTemplate:$("alertGiftTemplate").value,
- alertKicks:$("alertKicks").checked,alertFollow:$("alertFollow").checked,alertSub:$("alertSub").checked,alertGift:$("alertGift").checked,chatWho,banned:$("banned").value.split(/\n|,/).map(x=>x.trim()).filter(Boolean)};}
+ alertShowCard:$("alertShowCard").checked,alertKicks:$("alertKicks").checked,alertFollow:$("alertFollow").checked,alertSub:$("alertSub").checked,alertGift:$("alertGift").checked,chatWho,banned:$("banned").value.split(/\n|,/).map(x=>x.trim()).filter(Boolean)};}
 
 function svc(id,cls,text){$(id).className="dot "+cls;$(id+"V").textContent=text;}
 
@@ -480,6 +482,7 @@ function renderChatDiag(s){const st=s.settings,ago=t=>{const m=Math.round((Date.
 act("chatResync",async()=>{await post("chat-resync");toast("נרשמת מחדש להודעות צ'אט ✓");});
 
 // ── אירועים ──
+$("alertShowCard").onchange=async e=>{try{await post("settings",{settings:{alertShowCard:e.target.checked}});toast(e.target.checked?"באירועים תופיע גם התיבה":"באירועים – רק קול");}catch(err){toast(err.message,true);e.target.checked=!e.target.checked;}};
 const KIND_NAME={kicks:"Kicks",follow:"עוקב",sub:"סאב",gift:"סאבים במתנה"};
 function renderAlerts(s){const st=s.settings;
  for(const [k,K] of ALERTS){const on=!!st["alert"+K],sub=(s.alertSubs||{})[k];

@@ -45,6 +45,7 @@ export function defaultSettings() {
     chatWho: "all", // all | subs | vip | mods
     chatCooldown: 60,
     // הקראת אירועים (Kicks / עוקב / סאב / סאבים במתנה) – ההתראה עצמה נשארת ב-Botrix, אצלנו רק הקול
+    alertShowCard: false, // באירועים: רק קול (Botrix מציג את ההתראה). true = גם התיבה של ה-TTS
     alertKicks: false,
     alertKicksMin: 1,
     alertKicksTemplate: "{user} שלח {amount} קיקס: {text}",
@@ -105,6 +106,7 @@ export function sanitizeSettings(input, old = defaultSettings()) {
       s["alert" + K + "Template"] = v.includes("{user}") || v.includes("{text}") ? v : d["alert" + K + "Template"];
     }
   }
+  if ("alertShowCard" in i) s.alertShowCard = !!i.alertShowCard;
   if ("alertKicksMin" in i) s.alertKicksMin = clamp(i.alertKicksMin, 1, 1_000_000, s.alertKicksMin);
   if ("banned" in i && Array.isArray(i.banned)) {
     s.banned = [...new Set(i.banned.filter((w) => typeof w === "string").map((w) => w.trim()).filter(Boolean))].slice(0, 500);

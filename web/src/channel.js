@@ -575,7 +575,7 @@ export class ChannelDO {
     const bytesPerSec = audio.type === "audio/wav" ? 48_000 : 6_000;
     d.playing.deadline = this.now() + Math.ceil(audio.data.byteLength / bytesPerSec) * 1000 + 15_000;
     await this.save();
-    this.sendOverlays({ type: "play", id: item.id, user: item.user, text: item.text, volume: d.settings.volume / 100 });
+    this.sendOverlays({ type: "play", id: item.id, user: item.user, text: item.text, volume: d.settings.volume / 100, hidden: !!item.alert && !d.settings.alertShowCard });
     await this.scheduleAlarm();
   }
 
@@ -591,7 +591,7 @@ export class ChannelDO {
     try {
       speaker.send(JSON.stringify({ type: "speak", id: item.id, text: spoken, voice: s0.voice, rate: s0.rate, volume: s0.volume / 100 }));
     } catch {}
-    this.sendOverlays({ type: "play", id: item.id, user: item.user, text: item.text, silent: true });
+    this.sendOverlays({ type: "play", id: item.id, user: item.user, text: item.text, silent: true, hidden: !!item.alert && !d.settings.alertShowCard });
     await this.scheduleAlarm();
   }
 
