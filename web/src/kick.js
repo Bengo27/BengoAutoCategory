@@ -193,16 +193,35 @@ async function importKey(pem) {
   return crypto.subtle.importKey("spki", der, { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["verify"]);
 }
 
+// המפתח הציבורי העדכני של קיק (קיק יכול להחליף אותו) – נשמר בזיכרון לשעה
+let liveKey = null, liveKeyAt = 0, livePem = "";
+async function fetchLiveKey() {
+  if (liveKey && Date.now() - liveKeyAt < 3600_000) return liveKey;
+  try {
+    const r = await fetch("https://api.kick.com/public/v1/public-key");
+    const j = await r.json();
+    const pem = j?.data?.public_key || j?.public_key || "";
+    if (!pem.includes("BEGIN PUBLIC KEY")) return liveKey;
+    if (pem !== livePem) { liveKey = await importKey(pem); livePem = pem; }
+    liveKeyAt = Date.now();
+  } catch {}
+  return liveKey;
+}
+
 export async function verifyWebhook(headers, rawBody, pem = KICK_PUBLIC_KEY) {
   const id = headers.get("Kick-Event-Message-Id");
   const ts = headers.get("Kick-Event-Message-Timestamp");
   const sig = headers.get("Kick-Event-Signature");
   if (!id || !ts || !sig) return false;
-  try {
-    const key = pem === KICK_PUBLIC_KEY ? (cachedKey ??= await importKey(pem)) : await importKey(pem);
-    const signature = Uint8Array.from(atob(sig), (c) => c.charCodeAt(0));
-    return await crypto.subtle.verify("RSASSA-PKCS1-v1_5", key, signature, new TextEncoder().encode(`${id}.${ts}.${rawBody}`));
-  } catch {
-    return false;
-  }
+  let signature;
+  try { signature = Uint8Array.from(atob(sig.replace(/-/g, "+").replace(/_/g, "/").trim()), (c) => c.charCodeAt(0)); } catch { return false; }
+  const data = new TextEncoder().encode(`${id}.${ts}.${rawBody}`);
+  const tryKey = async (key) => { try { return !!key && (await crypto.subtle.verify("RSASSA-PKCS1-v1_5", key, signature, data)); } catch { return false; } };
+  if (pem !== KICK_PUBLIC_KEY) return tryKey(await importKey(pem).catch(() => null)); // בדיקות
+  if (await tryKey(cachedKey ??= await importKey(pem).catch(() => null))) return true;
+  // המפתח המובנה לא התאים – מביאים את המפתח העדכני מקיק
+  if (await tryKey(await fetchLiveKey())) return true;
+  if (Date.now() - liveKeyAt < 60_000) return false;
+  liveKeyAt = 0; // אולי המפתח התחלף ממש עכשיו – ננסה פעם אחת מחדש (לכל היותר פעם בדקה)
+  return tryKey(await fetchLiveKey());
 }
