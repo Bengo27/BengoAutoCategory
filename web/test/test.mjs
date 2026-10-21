@@ -509,6 +509,19 @@ await test("alerts (kicks / follow / sub / gift)", async () => {
   check(!kick.subscriptions.some((x) => x.event === "channel.followed"), "unsubscribed when turned off");
 });
 
+await test("alerts in Edge mode send nothing to OBS", async () => {
+  const { o, call, d } = await freshChannel("edge");
+  const overlay = o.state.addSocket("overlay"), tab = o.state.addSocket("speaker");
+  await call("enable", { enabled: true });
+  await call("alert-test", { kind: "follow" });
+  check(tab.last("speak")?.text.includes("תודה על העוקב") && !overlay.last("play"), "tab speaks, overlay shows nothing");
+  await o.obj.webSocketMessage(tab, JSON.stringify({ type: "done", id: tab.last("speak").id }));
+  await call("settings", { settings: { alertShowCard: true } });
+  d().gapUntil = 0;
+  await call("alert-test", { kind: "sub" });
+  check(overlay.last("play")?.silent === true, "with the toggle on the box shows");
+});
+
 await test("now playing (spotify)", async () => {
   const { sanitizeNp, validClientId } = await import("../src/nowplaying.js");
   check(sanitizeNp({ theme: "vinyl", accent: "#ff0000", opacity: 5, scale: 0.1 }).theme === "vinyl" && sanitizeNp({ opacity: 5 }).opacity === 1 && sanitizeNp({ scale: 0.1 }).scale === 0.6, "np sanitize clamps");

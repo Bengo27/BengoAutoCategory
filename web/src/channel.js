@@ -591,7 +591,8 @@ export class ChannelDO {
     try {
       speaker.send(JSON.stringify({ type: "speak", id: item.id, text: spoken, voice: s0.voice, rate: s0.rate, volume: s0.volume / 100 }));
     } catch {}
-    this.sendOverlays({ type: "play", id: item.id, user: item.user, text: item.text, silent: true, hidden: !!item.alert && !d.settings.alertShowCard });
+    // באירועים (רק קול) לא שולחים לווידג'ט כלום – כך גם גרסה ישנה של הווידג'ט ב-OBS לא תציג תיבה
+    if (!(item.alert && !d.settings.alertShowCard)) this.sendOverlays({ type: "play", id: item.id, user: item.user, text: item.text, silent: true });
     await this.scheduleAlarm();
   }
 
