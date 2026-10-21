@@ -131,7 +131,7 @@ const sameOrigin = (request, url) => request.headers.get("Origin") === url.origi
 // ───────────────────────── לוח הבקרה ─────────────────────────
 
 const POST_OPS = new Set(["settings", "enable", "reward", "skip", "pause", "approve", "reject", "test", "rotate", "voice-test", "clear",
-  "np-settings", "spotify-client", "spotify-disconnect"]);
+  "np-settings", "spotify-client", "spotify-disconnect", "chat-resync"]);
 
 async function api(request, env, url, uid) {
   const op = url.pathname.slice("/api/".length);

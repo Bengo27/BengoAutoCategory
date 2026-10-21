@@ -173,6 +173,13 @@ const BODY = `
         <div class="chips" id="chatWho"><button class="chip" data-who="all">כולם</button><button class="chip" data-who="subs">סאבים ומעלה</button>
           <button class="chip" data-who="vip">VIP ומודים</button><button class="chip" data-who="mods">רק מודים</button></div></div>
       <p class="muted" style="margin:12px 0 0">הודעה עם מילה חסומה או קישור פשוט לא מוקראת. המתג הראשי בסקירה מכבה גם את הצ'אט.</p>
+    </div>
+    <div class="card"><h2>🩺 בדיקת חיבור לצ'אט</h2>
+      <div class="svc"><span class="dot" id="cdSub"></span><span class="n">רישום להודעות צ'אט בקיק</span><span class="v" id="cdSubV"></span></div>
+      <div class="svc"><span class="dot" id="cdHook"></span><span class="n">התראה אחרונה שהגיעה מקיק</span><span class="v" id="cdHookV"></span></div>
+      <div class="svc"><span class="dot" id="cdLast"></span><span class="n">הודעת הצ'אט האחרונה עם סימן</span><span class="v" id="cdLastV"></span></div>
+      <p class="muted" id="cdHint" style="margin:10px 0"></p>
+      <div class="actions"><button id="chatResync">🔄 הירשם מחדש להודעות צ'אט</button></div>
     </div></div>
 
     <div class="tab" id="tab-reward"><div class="card"><h2>פרס בנקודות הערוץ</h2>
@@ -367,7 +374,7 @@ function render(s){state=s;const st=s.settings;if(!formLoaded){loadForm(st);form
  // דפדפן בלי קולות עבריים (Chrome וכו'): להציע את Gemini במקום
  const noVoices=!heVoices().length;$("spkBannerBtn").classList.toggle("hidden",noVoices);$("spkBannerGemini").classList.toggle("hidden",!noVoices||!s.geminiTts);
  $("spkBannerText").textContent=noVoices?(s.geminiTts?"בדפדפן הזה אין קולות עבריים. פתח את האתר ב-Edge כדי להקריא מכאן, או עבור ל-Gemini (הקול יוצא ישר מ-OBS).":"בדפדפן הזה אין קולות עבריים – פתח את האתר ב-Microsoft Edge והפעל שם הקראה."):"אף לשונית לא מקריאה כרגע – ההקראות מחכות.";
- speakerStatus();updateServerOff();renderNp(s);
+ speakerStatus();updateServerOff();renderNp(s);renderChatDiag(s);
  // OBS
  $("obsUrl").value=location.origin+s.overlayPath;$("obsDot").className="dot "+(s.overlays?"on":"warn");
  $("obsText").textContent=s.overlays?"פתוח ב-OBS ✓":"לא פתוח ב-OBS כרגע";
@@ -436,6 +443,15 @@ act("hearBtn",async()=>{if(mode==="edge"){await new Promise(res=>{const used=spe
 act("copyBtn",async()=>{await navigator.clipboard.writeText($("obsUrl").value);toast("הקישור הועתק ✓ – הדבק אותו ב-OBS");});
 $("previewBtn").onclick=()=>window.open($("obsUrl").value+"?demo=1","_blank");
 act("rotateBtn",async()=>{if(!confirm("ליצור קישור חדש? הקישור הישן יפסיק לעבוד, וצריך להדביק את החדש ב-OBS."))return;await post("rotate");toast("נוצר קישור חדש – עדכן אותו ב-OBS");});
+
+// ── בדיקת צ'אט ──
+function renderChatDiag(s){const st=s.settings,ago=t=>{const m=Math.round((Date.now()-t)/60000);return m<1?"עכשיו":m<60?"לפני "+m+" דק'":m<1440?"לפני "+Math.round(m/60)+" שע'":"לפני "+Math.round(m/1440)+" ימים";};
+ svc("cdSub",!st.chatEnabled?"":s.chatSubscribed?"on":"warn",!st.chatEnabled?"הקראה מהצ'אט כבויה":s.chatSubscribed?"רשום ✓":"לא רשום – לחץ על הירשם מחדש");
+ svc("cdHook",s.lastHookAt?"on":s.badHookAt?"warn":"warn",s.lastHookAt?ago(s.lastHookAt):s.badHookAt?"הגיעו עם חתימה לא תקינה":"אף פעם");
+ const c=s.chatDebug;svc("cdLast",c?(c.reason.includes("✓")?"on":"warn"):"",c?(c.user+": "+c.text+" ← "+c.reason+" ("+ago(c.at)+")"):"עוד לא הגיעה");
+ $("cdHint").textContent=!s.lastHookAt?(s.badHookAt?"קיק שולח, אבל החתימה לא עוברת בדיקה – תגיד לי, זה צד שלי.":"קיק עוד לא שלח לאתר אף התראה. בדוק בהגדרות האפליקציה בקיק (Settings ← Developer) ש-Enable Webhooks מופעל וה-Webhook URL הוא "+location.origin+"/kick/webhook – ושמרת."):
+  c?"":"מגיעות התראות מקיק. כתוב בצ'אט "+ltr(st.chatPrefix)+" בדיקה ותראה כאן מה קרה.";}
+act("chatResync",async()=>{await post("chat-resync");toast("נרשמת מחדש להודעות צ'אט ✓");});
 
 // ── Now Playing ──
 let npTheme="classic",npLoaded=false,npTimer=null,npPrevKey="";

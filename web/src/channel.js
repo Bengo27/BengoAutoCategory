@@ -97,6 +97,7 @@ export class ChannelDO {
         case "voice-test": return await this.voiceTest(body);
         case "logout": await this.logout(); break;
         case "clear": await this.clearQueue(); break;
+        case "chat-resync": this.data.chatSubscribed = false; await this.syncChatSubscription(); if (!this.data.chatSubscribed) throw new Error(this.data.error || "ההרשמה לצ'אט נכשלה"); this.data.error = null; break;
         case "np-settings": this.np().settings = sanitizeNp(body.settings, this.np().settings); await this.save(); this.sendNpConfig(); break;
         case "spotify-client": await this.setSpotifyClient(body.clientId); break;
         case "spotify-tokens": await this.spotifyConnect(body); break;
@@ -288,18 +289,22 @@ export class ChannelDO {
     if (!d || !m?.id) return;
     await this.markHook();
     const s = d.settings;
-    if (!s.enabled || !s.chatEnabled) return;
+    // מה קרה להודעה האחרונה מהצ'אט – מוצג בלוח הבקרה כדי שיהיה ברור למה משהו לא הוקרא
+    const note = async (reason) => { d.chatDebug = { at: this.now(), user: m.username || "", text: String(m.content || "").slice(0, 80), reason }; await this.save(); this.broadcast(); };
+    if (!s.enabled) return note("ההקראה כבויה (המתג הראשי בסקירה)");
+    if (!s.chatEnabled) return note("הקראה מהצ'אט כבויה");
     const raw = chatCommandText(m.content, s.chatPrefix);
-    if (!raw) return;
+    if (!raw) return note("לא מתחיל ב-" + s.chatPrefix + " ורווח");
     const id = "chat-" + m.id;
     if (d.seen.includes(id)) return;
-    if (!chatAllowed(s.chatWho, m.badges || [])) return;
+    if (!chatAllowed(s.chatWho, m.badges || [])) return note("לצופה הזה אין הרשאה (מי יכול להקריא)");
     const isMod = (m.badges || []).some((b) => b === "broadcaster" || b === "moderator");
     d.chatLast ||= {};
     const last = d.chatLast[m.userId] || 0;
-    if (!isMod && s.chatCooldown > 0 && this.now() - last < s.chatCooldown * 1000) return;
+    if (!isMod && s.chatCooldown > 0 && this.now() - last < s.chatCooldown * 1000) return note("המתנה בין הודעות (" + s.chatCooldown + " שנ')");
     const check = checkMessage(raw, s);
-    if (!check.ok) return; // בצ'אט אין נקודות להחזיר – פשוט לא מקריאים
+    if (!check.ok) return note("נחסם בסינון: " + (check.reason || "תוכן לא מתאים")); // בצ'אט אין נקודות להחזיר
+    d.chatDebug = { at: this.now(), user: m.username || "", text: String(m.content || "").slice(0, 80), reason: "נכנס לתור ✓" };
     d.seen.push(id);
     d.seen = d.seen.slice(-300);
     d.chatLast[m.userId] = this.now();
@@ -623,7 +628,10 @@ export class ChannelDO {
     this.state.acceptWebSocket(server, [role]);
     if (role !== "overlay") server.send(JSON.stringify({ type: "state", state: this.view() }));
     if (role === "dashboard") {
-      const work = this.refreshChannel().then(() => this.broadcast()).catch(() => {});
+      const work = (async () => {
+        if (this.data.settings.chatEnabled && !this.data.chatSubscribed && this.data.auth) await this.syncChatSubscription();
+        await this.refreshChannel();
+      })().then(() => this.broadcast()).catch(() => {});
       this.state.waitUntil?.(work);
     }
     if (role !== "dashboard") {
@@ -771,7 +779,7 @@ export class ChannelDO {
       items: [...open.sort((a, b) => (a.status === "playing" ? -1 : b.status === "playing" ? 1 : 0)), ...done]
         .map(({ id, user, text, at, status, note, test, chat }) => ({ id, user, text, at, status, note, test, chat: !!chat })),
       chatSubscribed: !!d.chatSubscribed,
-      lastHookAt: d.lastHookAt || 0, badHookAt: d.badHookAt || 0,
+      lastHookAt: d.lastHookAt || 0, badHookAt: d.badHookAt || 0, chatDebug: d.chatDebug || null,
       np: (() => { const n = this.np(); return { settings: n.settings, clientId: n.clientId, connected: !!n.auth, error: n.error,
         widgets: this.sockets("np").length, path: `/np/${d.user?.id}-${d.overlayKey}` }; })(),
       channel: d.channel || null,
