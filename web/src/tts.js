@@ -1,4 +1,15 @@
 // סינון הודעות + הקראה דרך Azure (אותם כללים כמו בתוכנה)
+/** קולות Gemini (Google) – כולם מדברים עברית; השמות באנגלית. */
+export const GEMINI_VOICES = {
+  Kore: "Kore – אישה, רגועה",
+  Aoede: "Aoede – אישה, קלילה",
+  Zephyr: "Zephyr – אישה, שמחה",
+  Puck: "Puck – גבר, אנרגטי",
+  Charon: "Charon – גבר, רציני",
+  Fenrir: "Fenrir – גבר, נלהב",
+};
+export const GEMINI_MODEL = "gemini-3.8-flash-tts";
+
 export const VOICES = {
   "he-IL-HilaNeural": "Hila – אישה",
   "he-IL-AvriNeural": "Avri – גבר",
@@ -17,7 +28,8 @@ export function defaultSettings() {
     rewardDescription: "כתבו הודעה והיא תוקרא בקול בשידור",
     voice: "he-IL-HilaNeural",
     // "edge" = הקול מלשונית ב-Edge (חינם, בלי הגבלה) · "server" = Azure דרך הווידג'ט ב-OBS
-    playback: "edge",
+    playback: "edge", // edge | server (Azure) | gemini
+    geminiVoice: "Kore",
     rate: 0,
     volume: 80,
     template: "{user} אומר: {text}",
@@ -47,7 +59,8 @@ export function sanitizeSettings(input, old = defaultSettings()) {
   if ("rewardCost" in i) s.rewardCost = clamp(i.rewardCost, 1, 10_000_000, s.rewardCost);
   if ("rewardDescription" in i) s.rewardDescription = typeof i.rewardDescription === "string" ? i.rewardDescription.trim().slice(0, 200) : s.rewardDescription;
   if ("voice" in i && VOICES[i.voice]) s.voice = i.voice;
-  if ("playback" in i && (i.playback === "edge" || i.playback === "server")) s.playback = i.playback;
+  if ("playback" in i && ["edge", "server", "gemini"].includes(i.playback)) s.playback = i.playback;
+  if ("geminiVoice" in i && GEMINI_VOICES[i.geminiVoice]) s.geminiVoice = i.geminiVoice;
   if ("rate" in i) s.rate = clamp(i.rate, -50, 50, s.rate);
   if ("volume" in i) s.volume = clamp(i.volume, 0, 100, s.volume);
   if ("template" in i) s.template = typeof i.template === "string" && i.template.includes("{text}") ? i.template.trim().slice(0, 100) : d.template;
@@ -149,4 +162,63 @@ export async function synthesize(env, text, voice, rate) {
   if (res.status === 429) throw new Error("המכסה החודשית של הקולות נגמרה.");
   if (!res.ok) throw new Error(`שירות הקולות החזיר שגיאה ${res.status}.`);
   return res.arrayBuffer();
+}
+
+// ───────────────────────── Gemini (Google AI Studio, יש מסלול חינמי) ─────────────────────────
+
+/** מוצא בתשובה את קובץ השמע (base64) – בלי להניח מבנה מדויק מדי. */
+function findAudio(node, depth = 0) {
+  if (!node || typeof node !== "object" || depth > 8) return null;
+  const mime = String(node.mime_type || node.mimeType || "");
+  if (typeof node.data === "string" && node.data.length > 200 && (mime.startsWith("audio") || node.type === "audio")) {
+    return { data: node.data, mime: mime || "audio/wav" };
+  }
+  for (const v of Array.isArray(node) ? node : Object.values(node)) {
+    const hit = findAudio(v, depth + 1);
+    if (hit) return hit;
+  }
+  return null;
+}
+
+/** עוטף PCM של 16 ביט (24kHz מונו) בכותרת WAV, כדי שהדפדפן ידע לנגן. */
+export function pcmToWav(pcm, rate = 24000) {
+  const out = new Uint8Array(44 + pcm.length);
+  const v = new DataView(out.buffer);
+  const w = (o, s) => [...s].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0)));
+  w(0, "RIFF"); v.setUint32(4, 36 + pcm.length, true); w(8, "WAVE"); w(12, "fmt ");
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+  w(36, "data"); v.setUint32(40, pcm.length, true);
+  out.set(pcm, 44);
+  return out;
+}
+
+/** מחזיר {data: Uint8Array (WAV), type: "audio/wav"}. זורק Error בעברית. */
+export async function synthesizeGemini(env, text, voice, rate) {
+  if (!env.GEMINI_API_KEY) throw new Error("Gemini עוד לא הוגדר בשרת (חסר מפתח).");
+  if (!GEMINI_VOICES[voice]) voice = "Kore";
+  const style = rate <= -15 ? "speaking slowly and clearly" : rate >= 15 ? "speaking quickly and energetically" : "natural, friendly";
+  let res;
+  try {
+    res = await fetch("https://generativelanguage.googleapis.com/v1beta/interactions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-goog-api-key": env.GEMINI_API_KEY },
+      body: JSON.stringify({
+        model: env.GEMINI_TTS_MODEL || GEMINI_MODEL,
+        input: [{ type: "user_input", content: [{ type: "text", text: text.slice(0, 600), annotations: [{ type: "speech_metadata", style }] }] }],
+        response_format: { type: "audio", mime_type: "audio/wav", sample_rate: 24000 },
+        generation_config: { speech_config: [{ voice }] },
+      }),
+    });
+  } catch {
+    throw new Error("אין חיבור ל-Gemini.");
+  }
+  if (res.status === 429) throw new Error("הגענו למגבלה היומית/לדקה של Gemini החינמי.");
+  if (res.status === 400 || res.status === 403) throw new Error("Gemini דחה את הבקשה (בדוק את המפתח).");
+  if (!res.ok) throw new Error(`Gemini החזיר שגיאה ${res.status}.`);
+  const audio = findAudio(await res.json().catch(() => null));
+  if (!audio) throw new Error("Gemini לא החזיר שמע.");
+  const bytes = Uint8Array.from(atob(audio.data), (c) => c.charCodeAt(0));
+  const isWav = bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46; // "RIFF"
+  return { data: isWav ? bytes : pcmToWav(bytes), type: "audio/wav" };
 }

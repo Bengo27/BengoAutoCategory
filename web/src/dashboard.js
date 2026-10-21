@@ -127,7 +127,8 @@ const BODY = `
       <div class="card"><h2>איך יוצא הקול</h2>
         <div class="chips" id="modes">
           <button class="chip" data-mode="edge">מהלשונית ב-Edge<small>חינם, בלי הגבלה · מומלץ</small></button>
-          <button class="chip" data-mode="server">מהשרת (Azure)<small>בלי לשונית פתוחה · מכסה חודשית</small></button>
+          <button class="chip" data-mode="gemini">מהשרת (Gemini)<small>חינם, בלי לשונית · מגבלה יומית</small></button>
+          <button class="chip" data-mode="server">מהשרת (Azure)<small>Hila ו-Avri בלי לשונית · מכסה חודשית</small></button>
         </div>
         <div id="edgePanel" style="margin-top:12px">
           <div class="row" style="padding-top:0"><div class="lbl"><span id="spkText"></span><small id="spkHint"></small></div>
@@ -136,12 +137,20 @@ const BODY = `
           Desktop Audio – או, לפס עוצמה נפרד: מקור <b>Application Audio Capture</b> ← <b>msedge.exe</b>.</p>
         </div>
         <p class="muted hidden" id="serverPanel" style="margin:12px 0 0">הווידג'ט ב-OBS מנגן את הקול בעצמו. ב-Browser Source סמן <b>Control audio via OBS</b>.</p>
-        <p class="notice hidden" id="serverOff">מצב שרת עוד לא זמין – צריך להגדיר מפתח Azure בשרת.</p>
+        <p class="notice hidden" id="serverOff"></p>
       </div>
       <div class="card"><h2>קול</h2>
         <div class="chips" id="voices">
           <button class="chip" data-voice="he-IL-HilaNeural">Hila<small>אישה</small></button>
           <button class="chip" data-voice="he-IL-AvriNeural">Avri<small>גבר</small></button>
+        </div>
+        <div class="chips hidden" id="gvoices">
+          <button class="chip" data-gvoice="Kore">Kore<small>אישה, רגועה</small></button>
+          <button class="chip" data-gvoice="Aoede">Aoede<small>אישה, קלילה</small></button>
+          <button class="chip" data-gvoice="Zephyr">Zephyr<small>אישה, שמחה</small></button>
+          <button class="chip" data-gvoice="Puck">Puck<small>גבר, אנרגטי</small></button>
+          <button class="chip" data-gvoice="Charon">Charon<small>גבר, רציני</small></button>
+          <button class="chip" data-gvoice="Fenrir">Fenrir<small>גבר, נלהב</small></button>
         </div>
         <div class="grid2" style="margin-top:12px">
           <div class="field"><label>מהירות: <span id="rateV"></span></label><input type="range" id="rate" min="-50" max="50" step="5"></div>
@@ -223,7 +232,7 @@ const BODY = `
 // הקוד שרץ בדפדפן. כתוב בלי ${…} כדי שלא יתנגש עם התבנית של השרת.
 const SCRIPT = String.raw`
 const $=id=>document.getElementById(id);
-let state=null,formLoaded=false,voice="he-IL-HilaNeural",mode="edge",chatWho="all",speakerWs=null,speakerOn=false;
+let state=null,formLoaded=false,voice="he-IL-HilaNeural",gvoice="Kore",mode="edge",chatWho="all",speakerWs=null,speakerOn=false;
 const STATUS={playing:"🔊 מוקרא עכשיו",waiting:"בתור",approval:"ממתין לאישור",done:"הוקרא",skipped:"דולג",rejected:"נדחה",failed:"נכשל"};
 function toast(t,bad){const e=$("toast");e.textContent=t;e.className="show"+(bad?" bad":"");clearTimeout(e._t);e._t=setTimeout(()=>e.className="",3500);}
 async function post(op,body={}){const r=await fetch("/api/"+op,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
@@ -244,11 +253,20 @@ $("saveBar").classList.add("hidden");
 function pick(sel,attr,val){document.querySelectorAll(sel).forEach(c=>c.classList.toggle("sel",c.dataset[attr]===val));}
 function setVoice(v){voice=v;pick("#voices .chip","voice",v);}
 function setWho(w){chatWho=w;pick("#chatWho .chip","who",w);}
-function setMode(m){mode=m;pick("#modes .chip","mode",m);$("edgePanel").classList.toggle("hidden",m!=="edge");$("serverPanel").classList.toggle("hidden",m!=="server");}
+function setGVoice(v){gvoice=v;pick("#gvoices .chip","gvoice",v);}
+function setMode(m){mode=m;pick("#modes .chip","mode",m);$("edgePanel").classList.toggle("hidden",m!=="edge");$("serverPanel").classList.toggle("hidden",m==="edge");
+ $("voices").classList.toggle("hidden",m==="gemini");$("gvoices").classList.toggle("hidden",m!=="gemini");updateServerOff();}
+function updateServerOff(){const st=state?.settings;let msg="";
+ if(mode==="gemini"&&state&&!state.geminiTts)msg="Gemini עוד לא מוגדר בשרת – צריך להוסיף מפתח (GEMINI_API_KEY).";
+ if(mode==="server"&&state&&!state.serverTts)msg="Azure עוד לא מוגדר בשרת – צריך להוסיף מפתח Azure.";
+ $("serverOff").textContent=msg;$("serverOff").classList.toggle("hidden",!msg);}
+document.querySelectorAll("#gvoices .chip").forEach(c=>c.onclick=()=>setGVoice(c.dataset.gvoice));
 document.querySelectorAll("#voices .chip").forEach(c=>c.onclick=()=>setVoice(c.dataset.voice));
 document.querySelectorAll("#chatWho .chip").forEach(c=>c.onclick=()=>setWho(c.dataset.who));
-document.querySelectorAll("#modes .chip").forEach(c=>c.onclick=async()=>{const m=c.dataset.mode;if(m==="server"&&state&&!state.serverTts){toast("מצב שרת עוד לא הוגדר (חסר מפתח Azure)",true);return;}
- setMode(m);try{await post("settings",{settings:{playback:m}});toast(m==="edge"?"הקול יוצא מהלשונית ב-Edge":"הקול יוצא מהשרת דרך הווידג'ט");}catch(e){toast(e.message,true);}});
+document.querySelectorAll("#modes .chip").forEach(c=>c.onclick=async()=>{const m=c.dataset.mode;
+ if(m==="server"&&state&&!state.serverTts){toast("Azure עוד לא הוגדר בשרת",true);return;}
+ if(m==="gemini"&&state&&!state.geminiTts){toast("Gemini עוד לא הוגדר בשרת",true);return;}
+ setMode(m);try{await post("settings",{settings:{playback:m}});toast(m==="edge"?"הקול יוצא מהלשונית ב-Edge":m==="gemini"?"הקול יוצא מהשרת (Gemini) דרך הווידג'ט ב-OBS":"הקול יוצא מהשרת (Azure) דרך הווידג'ט ב-OBS");}catch(e){toast(e.message,true);}});
 function showRange(){const r=+$("rate").value;$("rateV").textContent=r===0?"רגילה":(r>0?"+":"")+r+"%";$("volumeV").textContent=$("volume").value+"%";}
 $("rate").oninput=$("volume").oninput=showRange;
 $("chatPrefix").oninput=()=>{$("chatExample").textContent=$("chatPrefix").value.trim()||"!tts";};
@@ -256,10 +274,10 @@ const ltr=t=>"⁦"+t+"⁩"; // שומר על "!tts" בכיוון הנכון בת
 
 const FIELDS=["rewardTitle","rewardCost","rewardDescription","template","maxChars","gapSeconds","maxAgeMinutes","rate","volume","chatPrefix","chatCooldown"];
 function loadForm(s){for(const k of FIELDS)$(k).value=s[k];$("manualApproval").checked=s.manualApproval;$("blockLinks").checked=s.blockLinks;
- $("chatEnabled").checked=!!s.chatEnabled;$("banned").value=(s.banned||[]).join("\n");setVoice(s.voice);setWho(s.chatWho||"all");setMode(s.playback||"edge");showRange();$("chatPrefix").oninput();}
+ $("chatEnabled").checked=!!s.chatEnabled;$("banned").value=(s.banned||[]).join("\n");setVoice(s.voice);setGVoice(s.geminiVoice||"Kore");setWho(s.chatWho||"all");setMode(s.playback||"edge");showRange();$("chatPrefix").oninput();}
 function collect(){return{rewardTitle:$("rewardTitle").value,rewardCost:+$("rewardCost").value,rewardDescription:$("rewardDescription").value,template:$("template").value,
  maxChars:+$("maxChars").value,gapSeconds:+$("gapSeconds").value,maxAgeMinutes:+$("maxAgeMinutes").value,rate:+$("rate").value,volume:+$("volume").value,
- manualApproval:$("manualApproval").checked,blockLinks:$("blockLinks").checked,voice,playback:mode,chatEnabled:$("chatEnabled").checked,
+ manualApproval:$("manualApproval").checked,blockLinks:$("blockLinks").checked,voice,geminiVoice:gvoice,playback:mode,chatEnabled:$("chatEnabled").checked,
  chatPrefix:$("chatPrefix").value.trim(),chatCooldown:+$("chatCooldown").value,chatWho,banned:$("banned").value.split(/\n|,/).map(x=>x.trim()).filter(Boolean)};}
 
 function svc(id,cls,text){$(id).className="dot "+cls;$(id+"V").textContent=text;}
@@ -289,10 +307,11 @@ function render(s){state=s;const st=s.settings;if(!formLoaded){loadForm(st);form
  svc("svHook",s.webhook?"on":(s.rewardId?"warn":""),s.webhook?"מחובר":(s.rewardId?"בדיקה כל כמה שניות":"עוד אין פרס"));
  svc("svChat",st.chatEnabled?(s.chatSubscribed?"on":"warn"):"",st.chatEnabled?(s.chatSubscribed?"מאזין ל-"+ltr(st.chatPrefix):"לא מחובר"):"כבוי");
  svc("svObs",s.overlays?"on":"warn",s.overlays?s.overlays+" מחובר":"לא פתוח – הוסף ב\"מקורות OBS\"");
- if(st.playback==="server"){$("svVoiceN").textContent="קולות מהשרת";svc("svVoice",s.serverTts?"on":"bad",s.serverTts?"מוכן":"לא מוגדר");}
+ if(st.playback==="gemini"){$("svVoiceN").textContent="קולות Gemini";svc("svVoice",s.geminiTts?"on":"bad",s.geminiTts?"מוכן · "+st.geminiVoice:"לא מוגדר");}
+ else if(st.playback==="server"){$("svVoiceN").textContent="קולות Azure";svc("svVoice",s.serverTts?"on":"bad",s.serverTts?"מוכן":"לא מוגדר");}
  else{$("svVoiceN").textContent="לשונית מקריאה";svc("svVoice",(speakerOn||s.speakers)?"on":"warn",speakerOn?"הלשונית הזו":(s.speakers?"לשונית אחרת":"אף לשונית"));}
- const needSpeaker=st.playback!=="server"&&!speakerOn&&!s.speakers&&st.enabled;$("spkBanner").classList.toggle("hidden",!needSpeaker);
- speakerStatus();$("serverOff").classList.toggle("hidden",s.serverTts||st.playback!=="server");
+ const needSpeaker=st.playback==="edge"&&!speakerOn&&!s.speakers&&st.enabled;$("spkBanner").classList.toggle("hidden",!needSpeaker);
+ speakerStatus();updateServerOff();
  // OBS
  $("obsUrl").value=location.origin+s.overlayPath;$("obsDot").className="dot "+(s.overlays?"on":"warn");
  $("obsText").textContent=s.overlays?"פתוח ב-OBS ✓":"לא פתוח ב-OBS כרגע";
@@ -356,7 +375,7 @@ async function sendTest(){await post("test",{text:$("testText").value||"בדיק
 act("qaTest",sendTest);act("obsTestBtn",async()=>{await post("settings",{settings:collect()});await sendTest();});
 act("hearBtn",async()=>{if(mode==="edge"){await new Promise(res=>{const used=speak($("testText").value||"בדיקת קול",voice,+$("rate").value,+$("volume").value/100,err=>{
   if(err)toast(err==="no-voice"?"לא נמצא קול עברי בדפדפן – פתח ב-Edge":"ההקראה נכשלה ("+err+")",true);res();});if(used)toast("מקריא בקול: "+shortName(used));});return;}
- const blob=await post("voice-test",{text:$("testText").value,voice,rate:+$("rate").value});const a=new Audio(URL.createObjectURL(blob));a.volume=+$("volume").value/100;await a.play();});
+ toast("מכין את הקול…");const blob=await post("voice-test",{text:$("testText").value,voice:mode==="gemini"?gvoice:voice,rate:+$("rate").value});const a=new Audio(URL.createObjectURL(blob));a.volume=+$("volume").value/100;await a.play();});
 act("copyBtn",async()=>{await navigator.clipboard.writeText($("obsUrl").value);toast("הקישור הועתק ✓ – הדבק אותו ב-OBS");});
 $("previewBtn").onclick=()=>window.open($("obsUrl").value+"?demo=1","_blank");
 act("rotateBtn",async()=>{if(!confirm("ליצור קישור חדש? הקישור הישן יפסיק לעבוד, וצריך להדביק את החדש ב-OBS."))return;await post("rotate");toast("נוצר קישור חדש – עדכן אותו ב-OBS");});

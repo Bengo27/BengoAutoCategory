@@ -4,7 +4,7 @@ import {
   KickError, createReward, updateReward, pendingRedemptions, resolveRedemptions, userNames,
   subscribeRedemptions, subscribeEvents, unsubscribeEvent, getChannelInfo, refreshTokens, KICK, REDEMPTION_EVENT, CHAT_EVENT,
 } from "./kick.js";
-import { defaultSettings, sanitizeSettings, checkMessage, applyTemplate, synthesize, chatCommandText, chatAllowed } from "./tts.js";
+import { defaultSettings, sanitizeSettings, checkMessage, applyTemplate, synthesize, synthesizeGemini, chatCommandText, chatAllowed } from "./tts.js";
 
 /** פריט שקשור לקנייה בקיק (ולא בדיקה או הודעת צ'אט) – רק לו מאשרים/מחזירים נקודות. */
 const isRedemption = (item) => !item.test && !item.chat;
@@ -37,7 +37,22 @@ export class ChannelDO {
   sockets(role) { return this.state.getWebSockets(role).filter((ws) => ws.readyState !== 2 && ws.readyState !== 3); }
 
   /** מצב Edge: הקול יוצא מלשונית של לוח הבקרה. מצב שרת: הווידג'ט ב-OBS מנגן MP3 מ-Azure. */
-  edgeMode() { return this.data.settings.playback !== "server"; }
+  edgeMode() { const p = this.data.settings.playback; return p !== "server" && p !== "gemini"; }
+
+  /** קול מהשרת: Gemini או Azure. אם Gemini נכשל (למשל מגבלה יומית) ו-Azure מוגדר – מנסים את Azure. */
+  async synth(text, voiceOverride, rateOverride) {
+    const s = this.data.settings;
+    const rate = Number.isFinite(rateOverride) ? rateOverride : s.rate;
+    if (s.playback === "gemini") {
+      try {
+        return await synthesizeGemini(this.env, text, voiceOverride || s.geminiVoice, rate);
+      } catch (e) {
+        if (!(this.env.AZURE_SPEECH_KEY && this.env.AZURE_SPEECH_REGION)) throw e;
+      }
+    }
+    const mp3 = await synthesize(this.env, text, s.playback === "gemini" ? s.voice : voiceOverride || s.voice, rate);
+    return { data: mp3, type: "audio/mpeg" };
+  }
 
   /** יש מי שישמיע את הקול עכשיו? */
   canPlay() { return this.edgeMode() ? this.sockets("speaker").length > 0 : this.sockets("overlay").length > 0; }
@@ -426,8 +441,8 @@ export class ChannelDO {
     await this.save();
     const s = this.data.settings;
     const msg = checkMessage(text || "בדיקת קול", { ...defaultSettings(), blockLinks: false, banned: [], maxChars: 300 }).text || "בדיקת קול";
-    const mp3 = await synthesize(this.env, msg, voice || s.voice, Number.isFinite(rate) ? rate : s.rate);
-    return new Response(mp3, { headers: { "Content-Type": "audio/mpeg", "Cache-Control": "no-store" } });
+    const a = await this.synth(msg, voice, rate);
+    return new Response(a.data, { headers: { "Content-Type": a.type, "Cache-Control": "no-store" } });
   }
 
   // ───────────────────────── הקראה ─────────────────────────
@@ -461,10 +476,10 @@ export class ChannelDO {
       return;
     }
 
-    let mp3;
+    let audio;
     try {
       const s = d.settings;
-      mp3 = await synthesize(this.env, applyTemplate(s.template, item.user, item.text), s.voice, s.rate);
+      audio = await this.synth(applyTemplate(s.template, item.user, item.text));
     } catch (e) {
       item.status = "failed";
       item.note = e.message;
@@ -475,8 +490,9 @@ export class ChannelDO {
       return this.pump();
     }
 
-    this.audio.set(item.id, mp3);
-    d.playing.deadline = this.now() + Math.ceil(mp3.byteLength / 6000) * 1000 + 15_000;
+    this.audio.set(item.id, audio);
+    const bytesPerSec = audio.type === "audio/wav" ? 48_000 : 6_000;
+    d.playing.deadline = this.now() + Math.ceil(audio.data.byteLength / bytesPerSec) * 1000 + 15_000;
     await this.save();
     this.sendOverlays({ type: "play", id: item.id, user: item.user, text: item.text, volume: d.settings.volume / 100 });
     await this.scheduleAlarm();
@@ -609,9 +625,9 @@ export class ChannelDO {
 
   serveAudio(url) {
     if (!this.checkKey(url.searchParams.get("key"))) return new Response("forbidden", { status: 403 });
-    const mp3 = this.audio.get(url.searchParams.get("id") || "");
-    if (!mp3) return new Response("gone", { status: 404 });
-    return new Response(mp3, { headers: { "Content-Type": "audio/mpeg", "Cache-Control": "no-store" } });
+    const a = this.audio.get(url.searchParams.get("id") || "");
+    if (!a) return new Response("gone", { status: 404 });
+    return new Response(a.data, { headers: { "Content-Type": a.type, "Cache-Control": "no-store" } });
   }
 
   /** מה שלוח הבקרה מציג. */
@@ -629,6 +645,7 @@ export class ChannelDO {
       overlays: this.sockets("overlay").length,
       speakers: this.sockets("speaker").length,
       serverTts: !!(this.env.AZURE_SPEECH_KEY && this.env.AZURE_SPEECH_REGION),
+      geminiTts: !!this.env.GEMINI_API_KEY,
       overlayPath: `/o/${d.user?.id}-${d.overlayKey}`,
       paused: !!d.paused,
       playingId: d.playing?.id || null,

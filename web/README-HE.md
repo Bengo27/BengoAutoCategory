@@ -13,6 +13,7 @@
 | `KICK_CLIENT_SECRET` | Secret | ה-Client Secret (משמש גם לחתימת ההתחברויות ולהצפנת הטוקנים) |
 | `AZURE_SPEECH_KEY` | Secret | המפתח של משאב Speech ב-Azure |
 | `AZURE_SPEECH_REGION` | Text | למשל `westeurope` |
+| `GEMINI_API_KEY` | Secret | מפתח מ-aistudio.google.com (מסלול חינמי) – למצב "מהשרת (Gemini)" |
 
 ## באפליקציה בקיק
 - Redirect URL: `https://catego.<subdomain>.workers.dev/auth/callback`

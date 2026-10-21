@@ -1,5 +1,6 @@
 // בדיקות לאתר (Node 20+): node web/test/test.mjs
 import worker, { ChannelDO } from "../src/index.js";
+import { pcmToWav, synthesizeGemini } from "../src/tts.js";
 import { checkMessage, defaultSettings, sanitizeSettings, containsWord, applyTemplate, chatCommandText, chatAllowed, validPrefix } from "../src/tts.js";
 import { signSession, verifySession, seal, unseal } from "../src/crypto.js";
 import { verifyWebhook } from "../src/kick.js";
@@ -21,6 +22,14 @@ class FakeKick {
     const body = init.body ? String(init.body) : "";
     this.calls.push({ url, method, body });
     const J = (s, d) => new Response(JSON.stringify(d), { status: s, headers: { "Content-Type": "application/json" } });
+    if (url.includes("generativelanguage.googleapis.com")) {
+      if (this.geminiFail) return new Response('{"error":{"code":429}}', { status: 429 });
+      const req = JSON.parse(body);
+      this.geminiReq = { req, key: new Headers(init.headers).get("x-goog-api-key") };
+      // PCM בלי כותרת – השרת צריך לעטוף ב-WAV
+      const pcm = btoa(String.fromCharCode(...new Uint8Array(4800)));
+      return J(200, { id: "int1", steps: [{ type: "model_output", content: [{ type: "audio", mime_type: "audio/l16", data: pcm }] }] });
+    }
     if (url.includes("tts.speech.microsoft.com")) {
       if (this.azureFail) return new Response("", { status: 500 });
       return new Response(new Uint8Array(12000), { status: 200, headers: { "Content-Type": "audio/mpeg" } });
@@ -354,6 +363,40 @@ await test("chat TTS: subscribe, read, cooldown, permissions, no Kick calls", as
   check(!kick.subscriptions.some((x) => x.event === "chat.message.sent"), "unsubscribed when turned off");
   await msg("m9", 11, "!tts כבוי");
   check(!d().items.some((i) => i.id === "chat-m9"), "ignored when chat TTS off");
+});
+
+await test("Gemini mode: free server voices, WAV to OBS, fallback to Azure", async () => {
+  const wav = pcmToWav(new Uint8Array(10));
+  check(String.fromCharCode(...wav.slice(0, 4)) === "RIFF" && wav.length === 54, "pcm wrapped as wav");
+  const { o, call, d } = await freshChannel("gemini");
+  const genv = { ...env, GEMINI_API_KEY: "g-key" };
+  o.obj.env = genv;
+  await call("settings", { settings: { geminiVoice: "Puck", gapSeconds: 0 } });
+  await call("enable", { enabled: true });
+  const ws = o.state.addSocket("overlay");
+  await call("webhook", redeem("G1", 1, "שלום מג'מיני", "gal"));
+  check(kick.geminiReq?.key === "g-key" && kick.geminiReq.req.generation_config.speech_config[0].voice === "Puck", "Gemini called with key + voice");
+  check(kick.geminiReq.req.input[0].content[0].text === "gal אומר: שלום מג'מיני", "spoken text");
+  check(ws.last("play")?.id === "G1" && !ws.last("play").silent, "overlay plays audio itself (no Edge tab needed)");
+  const audio = await call("audio?key=" + d().overlayKey + "&id=G1");
+  check(audio.res.headers.get("Content-Type") === "audio/wav", "served as wav");
+  await o.obj.webSocketMessage(ws, JSON.stringify({ type: "done", id: "G1" }));
+  // מגבלה יומית → Azure
+  kick.geminiFail = true;
+  d().gapUntil = 0;
+  await call("webhook", redeem("G2", 2, "גיבוי", "b"));
+  check(ws.last("play")?.id === "G2" && kick.calls.some((c) => c.url.includes("tts.speech.microsoft.com")), "falls back to Azure when Gemini is out of quota");
+  await o.obj.webSocketMessage(ws, JSON.stringify({ type: "done", id: "G2" }));
+  // בלי Azure → נכשל ומחזיר נקודות
+  o.obj.env = { ...genv, AZURE_SPEECH_KEY: "" };
+  d().gapUntil = 0;
+  await call("webhook", redeem("G3", 3, "אין גיבוי", "c"));
+  check(kick.rejected.includes("G3") && d().items.find((i) => i.id === "G3").note.includes("Gemini"), "no fallback → refund with Gemini message");
+  kick.geminiFail = false;
+  check((await call("state")).json.geminiTts === true, "state reports Gemini ready");
+  let threw = false;
+  try { await synthesizeGemini({}, "x", "Kore", 0); } catch (e) { threw = /מפתח/.test(e.message); }
+  check(threw, "missing key → clear message");
 });
 
 await test("token refresh and expired login", async () => {

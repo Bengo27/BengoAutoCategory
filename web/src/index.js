@@ -51,6 +51,7 @@ export default {
           ok: true, service: "catego-web",
           kick: !!(env.KICK_CLIENT_ID && env.KICK_CLIENT_SECRET),
           tts: !!(env.AZURE_SPEECH_KEY && env.AZURE_SPEECH_REGION),
+          gemini: !!env.GEMINI_API_KEY,
         });
       }
       if (path === "/kick/webhook" && request.method === "POST") return webhook(request, env);
