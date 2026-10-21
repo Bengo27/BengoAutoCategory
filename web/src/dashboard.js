@@ -81,7 +81,7 @@ const BODY = `
 
 <main>
   <div class="banner hidden" id="spkBanner"><span class="t" id="spkBannerText">אף לשונית לא מקריאה כרגע – ההקראות מחכות.</span>
-    <button class="primary" id="spkBannerBtn">🔊 הפעל הקראה מכאן</button></div>
+    <button class="primary" id="spkBannerBtn">🔊 הפעל הקראה מכאן</button><button class="hidden" id="spkBannerGemini">עבור ל-Gemini</button></div>
   <div class="banner hidden" id="reloginBanner"><span class="t" id="reloginText"></span><a class="btn primary" href="/auth/login">התחבר מחדש</a></div>
 
   <!-- ═══════ סקירה ═══════ -->
@@ -311,6 +311,9 @@ function render(s){state=s;const st=s.settings;if(!formLoaded){loadForm(st);form
  else if(st.playback==="server"){$("svVoiceN").textContent="קולות Azure";svc("svVoice",s.serverTts?"on":"bad",s.serverTts?"מוכן":"לא מוגדר");}
  else{$("svVoiceN").textContent="לשונית מקריאה";svc("svVoice",(speakerOn||s.speakers)?"on":"warn",speakerOn?"הלשונית הזו":(s.speakers?"לשונית אחרת":"אף לשונית"));}
  const needSpeaker=st.playback==="edge"&&!speakerOn&&!s.speakers&&st.enabled;$("spkBanner").classList.toggle("hidden",!needSpeaker);
+ // דפדפן בלי קולות עבריים (Chrome וכו'): להציע את Gemini במקום
+ const noVoices=!heVoices().length;$("spkBannerBtn").classList.toggle("hidden",noVoices);$("spkBannerGemini").classList.toggle("hidden",!noVoices||!s.geminiTts);
+ $("spkBannerText").textContent=noVoices?(s.geminiTts?"בדפדפן הזה אין קולות עבריים. פתח את האתר ב-Edge כדי להקריא מכאן, או עבור ל-Gemini (הקול יוצא ישר מ-OBS).":"בדפדפן הזה אין קולות עבריים – פתח את האתר ב-Microsoft Edge והפעל שם הקראה."):"אף לשונית לא מקריאה כרגע – ההקראות מחכות.";
  speakerStatus();updateServerOff();
  // OBS
  $("obsUrl").value=location.origin+s.overlayPath;$("obsDot").className="dot "+(s.overlays?"on":"warn");
@@ -346,7 +349,7 @@ function speakerStatus(){const he=heVoices();const hila=he.find(v=>VOICE_RE["he-
  $("spkHint").textContent=!hasSpeech?"הדפדפן הזה לא יכול להקריא.":!isEdge&&!he.length?"פתח את האתר ב-Microsoft Edge – רק בו יש את Hila ו-Avri.":
   !he.length?"לא נמצאו קולות עבריים בדפדפן הזה.":"קולות שנמצאו: "+he.map(shortName).join(", ")+(hila&&avri?" ✓":" – חסר "+[!hila&&"Hila",!avri&&"Avri"].filter(Boolean).join(" ו-"));
  $("speakerBtn").textContent=speakerOn?"⏹ הפסק להקריא מכאן":"🔊 הפעל הקראה מהלשונית הזו";}
-if(hasSpeech)speechSynthesis.onvoiceschanged=speakerStatus;
+if(hasSpeech)speechSynthesis.onvoiceschanged=()=>{speakerStatus();if(state)render(state);};
 let spkRetry=1000;
 function connectSpeaker(){speakerWs=new WebSocket((location.protocol==="https:"?"wss://":"ws://")+location.host+"/api/ws?speaker=1");
  speakerWs.onmessage=e=>{spkRetry=1000;let m;try{m=JSON.parse(e.data);}catch{return;}
@@ -360,6 +363,7 @@ function toggleSpeaker(){if(speakerOn){speakerOn=false;try{speakerWs.close();}ca
  const warm=new SpeechSynthesisUtterance(" ");warm.volume=0;speechSynthesis.speak(warm); // הלחיצה "מאשרת" לדפדפן להשמיע קול
  speakerOn=true;connectSpeaker();speakerStatus();if(state)render(state);toast("הלשונית הזו תקריא את ההודעות – השאר אותה פתוחה");}
 $("speakerBtn").onclick=toggleSpeaker;$("spkBannerBtn").onclick=toggleSpeaker;
+act("spkBannerGemini",async()=>{setMode("gemini");await post("settings",{settings:{playback:"gemini"}});toast("עברת ל-Gemini – הקול יוצא עכשיו מהווידג'ט ב-OBS");});
 window.addEventListener("beforeunload",e=>{if(speakerOn){e.preventDefault();e.returnValue="";}});
 
 // ── פעולות ──
