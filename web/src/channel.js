@@ -13,7 +13,7 @@ import { npDefaults, sanitizeNp, validClientId, spotifyExchange, spotifyRefresh 
 
 const KEEP_FINISHED = 40;
 const REWARD_COLOR = "#2DD4BF";
-const POLL_WITH_WEBHOOK = 60_000; // גיבוי – למקרה ש-Webhook לא הגיע
+const POLL_WITH_WEBHOOK = 30_000; // גיבוי – למקרה ש-Webhook לא הגיע
 const POLL_WITHOUT_WEBHOOK = 5_000;
 
 const json = (data, status = 200) =>
@@ -73,8 +73,9 @@ export class ChannelDO {
     const body = request.method === "POST" ? await request.json().catch(() => ({})) : {};
     try {
       if (op === "init") return json(await this.init(body));
-      if (op === "webhook") { await this.onWebhook(body); return json({ ok: true }); }
-      if (op === "chat") { await this.onChat(body); return json({ ok: true }); }
+      if (op === "webhook") { await this.onWebhook(body); if (this.data) await this.save(); return json({ ok: true }); }
+      if (op === "chat") { await this.onChat(body); await this.save(); return json({ ok: true }); }
+      if (op === "hook-bad") { if (this.data) { this.data.badHookAt = this.now(); await this.save(); this.broadcast(); } return json({ ok: true }); }
 
       if (!this.data) return json({ error: "not_found" }, 404);
 
@@ -277,9 +278,15 @@ export class ChannelDO {
   // ───────────────────────── בקשות מצופים ─────────────────────────
 
   /** הודעה בצ'אט שמתחילה בסימן ההקראה. */
+  /** Webhook באמת מגיע? (נרשמנו + הגיעה התראה ב-24 השעות האחרונות) */
+  hooksWork() { const d = this.data; return !!d.webhook && this.now() - (d.lastHookAt || 0) < 24 * 3600_000; }
+
+  async markHook() { this.data.lastHookAt = this.now(); this.data.badHookAt = 0; }
+
   async onChat(m) {
     const d = this.data;
     if (!d || !m?.id) return;
+    await this.markHook();
     const s = d.settings;
     if (!s.enabled || !s.chatEnabled) return;
     const raw = chatCommandText(m.content, s.chatPrefix);
@@ -310,6 +317,7 @@ export class ChannelDO {
 
   async onWebhook(r) {
     if (!this.data || !r?.id) return;
+    await this.markHook();
     if (r.rewardId && this.data.rewardId && r.rewardId !== this.data.rewardId) return; // פרס אחר בערוץ
     if (!this.data.rewardId) return;
     if (r.status && r.status !== "pending") {
@@ -561,7 +569,7 @@ export class ChannelDO {
     const d = this.data;
     if (!d) return;
     if (d.playing && this.now() >= d.playing.deadline) await this.finish(d.playing.id, "done");
-    const interval = d.webhook ? POLL_WITH_WEBHOOK : POLL_WITHOUT_WEBHOOK;
+    const interval = this.hooksWork() ? POLL_WITH_WEBHOOK : POLL_WITHOUT_WEBHOOK;
     if (this.anyOutput() && d.settings.enabled && d.rewardId && this.now() - (d.lastPoll || 0) >= interval) {
       await this.poll();
     }
@@ -579,7 +587,7 @@ export class ChannelDO {
     if (d.playing) times.push(d.playing.deadline);
     if ((d.gapUntil || 0) > this.now()) times.push(d.gapUntil);
     if (this.anyOutput() && d.settings.enabled && d.rewardId) {
-      times.push((d.lastPoll || 0) + (d.webhook ? POLL_WITH_WEBHOOK : POLL_WITHOUT_WEBHOOK));
+      times.push((d.lastPoll || 0) + (this.hooksWork() ? POLL_WITH_WEBHOOK : POLL_WITHOUT_WEBHOOK));
     }
     if (times.length) await this.state.storage.setAlarm(Math.max(this.now() + 500, Math.min(...times)));
     else await this.state.storage.deleteAlarm();
@@ -763,6 +771,7 @@ export class ChannelDO {
       items: [...open.sort((a, b) => (a.status === "playing" ? -1 : b.status === "playing" ? 1 : 0)), ...done]
         .map(({ id, user, text, at, status, note, test, chat }) => ({ id, user, text, at, status, note, test, chat: !!chat })),
       chatSubscribed: !!d.chatSubscribed,
+      lastHookAt: d.lastHookAt || 0, badHookAt: d.badHookAt || 0,
       np: (() => { const n = this.np(); return { settings: n.settings, clientId: n.clientId, connected: !!n.auth, error: n.error,
         widgets: this.sockets("np").length, path: `/np/${d.user?.id}-${d.overlayKey}` }; })(),
       channel: d.channel || null,

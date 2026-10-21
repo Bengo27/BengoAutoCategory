@@ -355,7 +355,9 @@ function render(s){state=s;const st=s.settings;if(!formLoaded){loadForm(st);form
  $("rewardBtn").textContent=s.rewardId?"עדכן את הפרס בקיק":"צור פרס בקיק";
  // שירותים
  svc("svKick",s.connected?"on":"bad",s.connected?"מחובר בתור "+name:"לא מחובר");
- svc("svHook",s.webhook?"on":(s.rewardId?"warn":""),s.webhook?"מחובר":(s.rewardId?"בדיקה כל כמה שניות":"עוד אין פרס"));
+ const hookOk=s.lastHookAt&&Date.now()-s.lastHookAt<864e5;
+ const ago=t=>{const m=Math.round((Date.now()-t)/60000);return m<1?"עכשיו":m<60?"לפני "+m+" דק'":"לפני "+Math.round(m/60)+" שע'";};
+ svc("svHook",hookOk?"on":(s.rewardId?"warn":""),hookOk?"מחובר · התראה אחרונה "+ago(s.lastHookAt):s.badHookAt?"מגיעות התראות עם חתימה לא תקינה":s.webhook?"עוד לא הגיעה אף התראה מקיק":(s.rewardId?"בדיקה כל כמה שניות":"עוד אין פרס"));
  svc("svChat",st.chatEnabled?(s.chatSubscribed?"on":"warn"):"",st.chatEnabled?(s.chatSubscribed?"מאזין ל-"+ltr(st.chatPrefix):"לא מחובר"):"כבוי");
  svc("svObs",s.overlays?"on":"warn",s.overlays?s.overlays+" מחובר":"לא פתוח – הוסף ב\"מקורות OBS\"");
  if(st.playback==="gemini"){$("svVoiceN").textContent="קולות Gemini";svc("svVoice",s.geminiTts?"on":"bad",s.geminiTts?"מוכן · "+st.geminiVoice:"לא מוגדר");}

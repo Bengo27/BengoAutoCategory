@@ -215,7 +215,11 @@ async function npOverlay(request, env, url) {
 async function webhook(request, env) {
   const raw = await request.text();
   if (raw.length > 64_000) return json({ error: "too_large" }, 413);
-  if (!(await verifyWebhook(request.headers, raw))) return json({ error: "bad_signature" }, 401);
+  if (!(await verifyWebhook(request.headers, raw))) {
+    // לאבחון בלבד: מסמנים אצל הסטרימר ש"הגיעה התראה עם חתימה לא תקינה" (בלי לפעול לפיה)
+    try { const b = Number(JSON.parse(raw)?.broadcaster?.user_id); if (b > 0) await call(env, b, "hook-bad", { method: "POST", body: {} }); } catch {}
+    return json({ error: "bad_signature" }, 401);
+  }
   const type = request.headers.get("Kick-Event-Type");
   if (type !== REDEMPTION_EVENT && type !== CHAT_EVENT) return json({ ok: true });
   let p;
