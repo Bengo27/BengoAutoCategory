@@ -44,9 +44,13 @@ export class ChannelDO {
     const s = this.data.settings;
     const rate = Number.isFinite(rateOverride) ? rateOverride : s.rate;
     if (s.playback === "gemini") {
+      const d = this.data;
       try {
+        // אחרי "הגענו למגבלה" לא מנסים שוב 10 דקות (כל ניסיון מבזבז כמה שניות)
+        if ((d.geminiLimitedUntil || 0) > this.now()) throw new Error("Gemini הגיע למגבלה של המסלול החינמי – ננסה שוב בעוד כמה דקות.");
         return await synthesizeGemini(this.env, text, voiceOverride || s.geminiVoice, rate);
       } catch (e) {
+        if (/מגבלה/.test(e.message) && !((d.geminiLimitedUntil || 0) > this.now())) { d.geminiLimitedUntil = this.now() + 10 * 60_000; await this.save(); }
         if (!(this.env.AZURE_SPEECH_KEY && this.env.AZURE_SPEECH_REGION)) throw e;
       }
     }
@@ -420,7 +424,7 @@ export class ChannelDO {
 
   async enqueueTest(text) {
     const check = checkMessage(text || "בדיקת קול", { ...defaultSettings(), blockLinks: false, banned: [], maxChars: 300 });
-    this.data.items.unshift({
+    this.data.items.push({
       id: "test-" + randomId(8), user: "בדיקה", userId: 0, text: check.text || "בדיקת קול",
       at: this.now(), status: "waiting", note: null, test: true,
     });
@@ -453,7 +457,9 @@ export class ChannelDO {
     if (d.playing) return;
     if (!this.canPlay()) { await this.scheduleAlarm(); return; }
     if (this.now() < (d.gapUntil || 0)) { await this.scheduleAlarm(); return; }
-    const item = d.items.find((i) => i.status === "waiting" && (i.test || (d.settings.enabled && !d.paused)));
+    // בדיקות קודם, ואז הודעות של צופים לפי הסדר
+    const item = d.items.find((i) => i.status === "waiting" && i.test) ||
+      d.items.find((i) => i.status === "waiting" && !i.test && d.settings.enabled && !d.paused);
     if (!item) { await this.scheduleAlarm(); return; }
 
     item.status = "playing";
@@ -463,16 +469,7 @@ export class ChannelDO {
 
     const s0 = d.settings;
     if (this.edgeMode()) {
-      // הקול מהלשונית ב-Edge (חינם), והווידג'ט ב-OBS רק מציג את ההודעה
-      const spoken = applyTemplate(s0.template, item.user, item.text);
-      d.playing.deadline = this.now() + Math.ceil(spoken.length / 10) * 1000 + 15_000;
-      await this.save();
-      const speaker = this.sockets("speaker")[0];
-      try {
-        speaker.send(JSON.stringify({ type: "speak", id: item.id, text: spoken, voice: s0.voice, rate: s0.rate, volume: s0.volume / 100 }));
-      } catch {}
-      this.sendOverlays({ type: "play", id: item.id, user: item.user, text: item.text, silent: true });
-      await this.scheduleAlarm();
+      await this.speakViaTab(item);
       return;
     }
 
@@ -481,20 +478,44 @@ export class ChannelDO {
       const s = d.settings;
       audio = await this.synth(applyTemplate(s.template, item.user, item.text));
     } catch (e) {
+      // אם יש לשונית Edge פתוחה – מקריאים ממנה במקום לוותר
+      if (this.sockets("speaker").length) {
+        item.note = "השרת נכשל – הוקרא מהלשונית";
+        await this.speakViaTab(item);
+        return;
+      }
       item.status = "failed";
       item.note = e.message;
       d.playing = null;
+      d.error = "ההקראה נכשלה: " + e.message;
       if (isRedemption(item)) await this.kick((t) => resolveRedemptions(t, "reject", [item.id])).catch(() => {});
       await this.save();
       this.broadcast();
       return this.pump();
     }
+    if (d.error && d.error.startsWith("ההקראה נכשלה")) d.error = null;
 
     this.audio.set(item.id, audio);
     const bytesPerSec = audio.type === "audio/wav" ? 48_000 : 6_000;
     d.playing.deadline = this.now() + Math.ceil(audio.data.byteLength / bytesPerSec) * 1000 + 15_000;
     await this.save();
     this.sendOverlays({ type: "play", id: item.id, user: item.user, text: item.text, volume: d.settings.volume / 100 });
+    await this.scheduleAlarm();
+  }
+
+  /** הקול מהלשונית ב-Edge (חינם), והווידג'ט ב-OBS רק מציג את ההודעה. */
+  async speakViaTab(item) {
+    const d = this.data;
+    const s0 = d.settings;
+    const spoken = applyTemplate(s0.template, item.user, item.text);
+    d.playing = { id: item.id, deadline: this.now() + Math.ceil(spoken.length / 10) * 1000 + 15_000 };
+    await this.save();
+    this.broadcast();
+    const speaker = this.sockets("speaker")[0];
+    try {
+      speaker.send(JSON.stringify({ type: "speak", id: item.id, text: spoken, voice: s0.voice, rate: s0.rate, volume: s0.volume / 100 }));
+    } catch {}
+    this.sendOverlays({ type: "play", id: item.id, user: item.user, text: item.text, silent: true });
     await this.scheduleAlarm();
   }
 

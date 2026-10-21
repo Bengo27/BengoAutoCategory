@@ -392,6 +392,13 @@ await test("Gemini mode: free server voices, WAV to OBS, fallback to Azure", asy
   d().gapUntil = 0;
   await call("webhook", redeem("G3", 3, "אין גיבוי", "c"));
   check(kick.rejected.includes("G3") && d().items.find((i) => i.id === "G3").note.includes("Gemini"), "no fallback → refund with Gemini message");
+  check(/נכשלה/.test(d().error || ""), "failure is shown on the dashboard");
+  // Gemini במגבלה + לשונית Edge פתוחה → מקריאים מהלשונית
+  const tab = o.state.addSocket("speaker");
+  d().gapUntil = 0;
+  await call("test", { text: "בדיקה אחרי מגבלה" });
+  check(tab.last("speak")?.text.includes("בדיקה אחרי מגבלה"), "falls back to the Edge tab when the server voice fails");
+  check(d().items.some((i) => i.test && i.status === "playing"), "test item stays visible in the queue");
   kick.geminiFail = false;
   check((await call("state")).json.geminiTts === true, "state reports Gemini ready");
   let threw = false;
