@@ -8,7 +8,8 @@
 import { ChannelDO } from "./channel.js";
 import { KICK, SCOPES, exchangeCode, getMe, verifyWebhook, REDEMPTION_EVENT, CHAT_EVENT, badgeTypes } from "./kick.js";
 import { signSession, verifySession, pkce, randomId, cookies } from "./crypto.js";
-import { landingPage, dashboardPage, overlayPage } from "./pages.js";
+import { landingPage, overlayPage } from "./pages.js";
+import { dashboardPage } from "./dashboard.js";
 
 export { ChannelDO };
 

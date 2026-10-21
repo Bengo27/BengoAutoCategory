@@ -78,6 +78,16 @@ export async function getMe(token) {
   return { id: Number(u.user_id), name: u.name || slug || "streamer", slug };
 }
 
+/** מצב הערוץ: בלייב? כמה צופים? איזו קטגוריה? */
+export async function getChannelInfo(token) {
+  const c = first(await kickApi(token, "GET", "/channels"));
+  if (!c) return null;
+  return {
+    slug: c.slug || "", title: c.stream_title || "", category: c.category?.name || "",
+    live: !!c.stream?.is_live, viewers: Number(c.stream?.viewer_count) || 0,
+  };
+}
+
 export const parseReward = (r) =>
   r && r.id ? {
     id: r.id, title: r.title || "", cost: Number(r.cost) || 0,

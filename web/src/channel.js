@@ -2,7 +2,7 @@
 // והחיבורים הפתוחים (הווידג'ט ב-OBS + לוח הבקרה באתר).
 import {
   KickError, createReward, updateReward, pendingRedemptions, resolveRedemptions, userNames,
-  subscribeRedemptions, subscribeEvents, unsubscribeEvent, refreshTokens, KICK, REDEMPTION_EVENT, CHAT_EVENT,
+  subscribeRedemptions, subscribeEvents, unsubscribeEvent, getChannelInfo, refreshTokens, KICK, REDEMPTION_EVENT, CHAT_EVENT,
 } from "./kick.js";
 import { defaultSettings, sanitizeSettings, checkMessage, applyTemplate, synthesize, chatCommandText, chatAllowed } from "./tts.js";
 
@@ -61,7 +61,7 @@ export class ChannelDO {
       if (op === "ws") return this.acceptSocket(request, url);
       if (op === "overlay") return json({ ok: this.checkKey(url.searchParams.get("key")) }, this.checkKey(url.searchParams.get("key")) ? 200 : 403);
       if (op === "audio") return this.serveAudio(url);
-      if (op === "state") return json(this.view());
+      if (op === "state") { await this.refreshChannel(); return json(this.view()); }
 
       switch (op) {
         case "settings": await this.updateSettings(body.settings); break;
@@ -75,6 +75,7 @@ export class ChannelDO {
         case "rotate": this.data.overlayKey = randomId(18); await this.save(); this.closeOverlays(); break;
         case "voice-test": return await this.voiceTest(body);
         case "logout": await this.logout(); break;
+        case "clear": await this.clearQueue(); break;
         default: return json({ error: "unknown" }, 404);
       }
       this.broadcast();
@@ -373,6 +374,35 @@ export class ChannelDO {
     await this.save();
   }
 
+  /** מנקה את התור: בקשות מפרסים נדחות (הנקודות חוזרות), הודעות צ'אט ובדיקות נמחקות. */
+  async clearQueue() {
+    for (const item of this.data.items.filter((i) => i.status === "waiting" || i.status === "approval")) {
+      await this.reject(item, "התור נוקה");
+    }
+    await this.save();
+  }
+
+  /** מצב הערוץ בקיק (לייב / צופים) – לכל היותר פעם בדקה. */
+  async refreshChannel(force = false) {
+    const d = this.data;
+    if (!d?.auth) return;
+    if (!force && d.channel && this.now() - (d.channel.at || 0) < 60_000) return;
+    try {
+      const info = await this.kick((t) => getChannelInfo(t));
+      if (info) { d.channel = { ...info, at: this.now() }; await this.save(); }
+    } catch {}
+  }
+
+  /** מונים יומיים לסקירה. */
+  count(item) {
+    const d = this.data;
+    const day = new Date(this.now() + 3 * 3600_000).toISOString().slice(0, 10); // שעון ישראל (בערך)
+    if (!d.stats || d.stats.day !== day) d.stats = { day, total: 0, chat: 0, reward: 0 };
+    if (item.test) return;
+    d.stats.total++;
+    if (item.chat) d.stats.chat++; else d.stats.reward++;
+  }
+
   async enqueueTest(text) {
     const check = checkMessage(text || "בדיקת קול", { ...defaultSettings(), blockLinks: false, banned: [], maxChars: 300 });
     this.data.items.unshift({
@@ -463,6 +493,7 @@ export class ChannelDO {
     if (item) {
       item.status = status;
       if (note) item.note = note;
+      if (status === "done") this.count(item);
       if (status === "failed") {
         if (isRedemption(item)) await this.kick((t) => resolveRedemptions(t, "reject", [item.id])).catch(() => {}); // מחזירים נקודות
       } else {
@@ -534,6 +565,10 @@ export class ChannelDO {
     if (role === "speaker") for (const ws of this.sockets("speaker")) try { ws.close(4002, "replaced"); } catch {}
     this.state.acceptWebSocket(server, [role]);
     if (role !== "overlay") server.send(JSON.stringify({ type: "state", state: this.view() }));
+    if (role === "dashboard") {
+      const work = this.refreshChannel().then(() => this.broadcast()).catch(() => {});
+      this.state.waitUntil?.(work);
+    }
     if (role !== "dashboard") {
       // ווידג'ט נפתח: לבדוק מיד בקשות ולהמשיך את התור
       this.data.lastPoll = 0;
@@ -601,6 +636,8 @@ export class ChannelDO {
       items: [...open.sort((a, b) => (a.status === "playing" ? -1 : b.status === "playing" ? 1 : 0)), ...done]
         .map(({ id, user, text, at, status, note, test, chat }) => ({ id, user, text, at, status, note, test, chat: !!chat })),
       chatSubscribed: !!d.chatSubscribed,
+      channel: d.channel || null,
+      stats: d.stats && d.stats.day === new Date(this.now() + 3 * 3600_000).toISOString().slice(0, 10) ? d.stats : { total: 0, chat: 0, reward: 0 },
     };
   }
 }
