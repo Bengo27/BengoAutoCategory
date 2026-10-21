@@ -67,7 +67,7 @@ const BODY = `
     <a href="#overview" data-page="overview">🏠 סקירה</a>
     <div class="grp">כלים</div>
     <a href="#tts" data-page="tts">🔊 הקראה (TTS)</a>
-    <a class="soon">🎵 Now Playing <span class="tag">בקרוב</span></a>
+    <a href="#np" data-page="np">🎵 Now Playing</a>
     <a class="soon">🔔 התראות <span class="tag">בקרוב</span></a>
     <a class="soon">📊 סקרים וניחושים <span class="tag">בקרוב</span></a>
     <a class="soon">💬 צ'אט על המסך <span class="tag">בקרוב</span></a>
@@ -201,6 +201,53 @@ const BODY = `
     <div class="savebar" id="saveBar"><button class="primary" id="saveBtn">שמור הגדרות</button><span class="muted" id="saved"></span></div>
   </section>
 
+  <!-- ═══════ Now Playing ═══════ -->
+  <section class="page" id="page-np">
+    <h1>🎵 Now Playing</h1><p class="sub">השיר שמתנגן אצלך בספוטיפיי – על המסך בשידור, עם 7 עיצובים.</p>
+    <p class="notice hidden" id="npError"></p>
+    <div class="card"><h2>1. חיבור לספוטיפיי</h2>
+      <div class="row" style="padding-top:0"><div class="lbl"><span class="dot" id="npDot"></span> <span id="npStatus"></span><small id="npStatusHint"></small></div>
+        <div class="actions"><button class="primary" id="npConnect">התחבר לספוטיפיי</button><button class="danger hidden" id="npDisconnect">נתק</button></div></div>
+      <details id="npSetup"><summary><b>הגדרה חד-פעמית (5 דקות)</b> – יוצרים אפליקציה קטנה בספוטיפיי</summary>
+        <ol class="muted" style="line-height:1.9">
+          <li>נכנסים ל-<a href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener">developer.spotify.com/dashboard</a> ומתחברים עם חשבון הספוטיפיי שלך.</li>
+          <li>לוחצים <b>Create app</b>. שם ותיאור – מה שבא לך (למשל Catego).</li>
+          <li>ב-<b>Redirect URIs</b> מדביקים את הכתובת הזו ולוחצים Add:
+            <div class="url" style="margin:6px 0"><input type="text" id="npRedirect" readonly dir="ltr"><button id="npCopyRedirect">העתק</button></div></li>
+          <li>ב-<b>Which API/SDKs</b> מסמנים <b>Web API</b>, מאשרים את התנאים ושומרים.</li>
+          <li>בדף האפליקציה ← <b>Settings</b> ← מעתיקים את ה-<b>Client ID</b> ומדביקים כאן למטה. (את ה-Client Secret <b>לא</b> צריך – אל תדביק אותו.)</li>
+        </ol>
+        <div class="field"><label>Client ID</label><div class="url"><input type="text" id="npClientId" dir="ltr" maxlength="40" placeholder="32 תווים" style="direction:ltr;text-align:left"><button class="primary" id="npSaveClient">שמור</button></div></div>
+      </details>
+    </div>
+    <div class="card"><h2>2. הקישור ל-OBS</h2>
+      <div class="row" style="padding-top:0"><div class="lbl"><span class="dot" id="npWDot"></span> <span id="npWText"></span></div></div>
+      <div class="url"><input type="text" id="npUrl" readonly><button id="npCopy">העתק</button></div>
+      <p class="muted" style="margin-bottom:0">ב-OBS: Sources ← <b>+</b> ← <b>Browser</b> ← מדביקים, רוחב <b>520</b> וגובה <b>340</b>. הווידג'ט מתעדכן לבד כשמחליפים כאן עיצוב.</p>
+    </div>
+    <div class="card"><h2>3. עיצוב</h2>
+      <div class="chips" id="npThemes">
+        <button class="chip" data-theme="classic">Classic<small>כרטיס כהה</small></button>
+        <button class="chip" data-theme="minimal">Minimal<small>בלי רקע</small></button>
+        <button class="chip" data-theme="glass">Glass<small>זכוכית</small></button>
+        <button class="chip" data-theme="neon">Neon<small>זוהר</small></button>
+        <button class="chip" data-theme="album">Album<small>עטיפה גדולה</small></button>
+        <button class="chip" data-theme="slim">Slim<small>פס דק</small></button>
+        <button class="chip" data-theme="vinyl">Vinyl<small>תקליט מסתובב</small></button>
+      </div>
+      <div class="grid2" style="margin-top:12px">
+        <div class="field"><label>צבע</label><input type="color" id="npAccent" style="width:70px;height:36px;padding:2px"></div>
+        <div class="field"><label>שקיפות רקע: <span id="npOpacityV"></span></label><input type="range" id="npOpacity" min="15" max="100" step="5"></div>
+        <div class="field"><label>גודל: <span id="npScaleV"></span></label><input type="range" id="npScale" min="60" max="130" step="5"></div>
+      </div>
+      <div class="row"><div class="lbl">להסתיר כשהשיר בהשהיה</div><label class="switch"><input type="checkbox" id="npHidePaused"><span></span></label></div>
+      <div class="row"><div class="lbl">להקטין אחרי 5 שניות<small>מציג גדול כשמתחלף שיר, ואז עובר למצב קומפקטי.</small></div><label class="switch"><input type="checkbox" id="npCompact"><span></span></label></div>
+      <h2 style="margin-top:14px">תצוגה מקדימה</h2>
+      <div style="background:repeating-conic-gradient(#2a2f35 0 25%,#1f2328 0 50%) 0 0/24px 24px;border-radius:12px;height:340px;overflow:hidden">
+        <iframe id="npPreview" title="תצוגה מקדימה" style="width:520px;max-width:100%;height:340px;border:0;background:transparent" allowtransparency="true"></iframe></div>
+    </div>
+  </section>
+
   <!-- ═══════ OBS ═══════ -->
   <section class="page" id="page-obs">
     <h1>מקורות OBS</h1><p class="sub">כל ווידג'ט הוא Browser Source ב-OBS. הקישורים אישיים – אל תשתף אותם.</p>
@@ -209,7 +256,11 @@ const BODY = `
       <div class="url"><input type="text" id="obsUrl" readonly><button id="copyBtn">העתק</button><button class="ghost" id="previewBtn">תצוגה מקדימה</button></div>
       <p class="muted" style="margin-bottom:0">ב-OBS: Sources ← <b>+</b> ← <b>Browser</b> ← מדביקים את הקישור, רוחב <b>1920</b> וגובה <b>400</b>. הכרטיס מופיע רק בזמן הקראה.</p>
     </div>
-    <div class="card soon-card"><span class="ic">🎵</span><div><b>Now Playing</b><div class="muted">השיר שמתנגן בספוטיפיי – בקרוב.</div></div></div>
+    <div class="card"><h2>🎵 Now Playing</h2>
+      <div class="row" style="padding-top:0"><div class="lbl"><span class="dot" id="npObsDot"></span> <span id="npObsText"></span></div><a href="#np">להגדרות ←</a></div>
+      <div class="url"><input type="text" id="npUrl2" readonly><button id="npCopy2">העתק</button></div>
+      <p class="muted" style="margin-bottom:0">Browser Source ברוחב <b>520</b> וגובה <b>340</b>.</p>
+    </div>
     <div class="card soon-card"><span class="ic">🔔</span><div><b>התראות</b><div class="muted">עוקבים, סאבים ו-Kicks – בקרוב.</div></div></div>
   </section>
 
@@ -314,7 +365,7 @@ function render(s){state=s;const st=s.settings;if(!formLoaded){loadForm(st);form
  // דפדפן בלי קולות עבריים (Chrome וכו'): להציע את Gemini במקום
  const noVoices=!heVoices().length;$("spkBannerBtn").classList.toggle("hidden",noVoices);$("spkBannerGemini").classList.toggle("hidden",!noVoices||!s.geminiTts);
  $("spkBannerText").textContent=noVoices?(s.geminiTts?"בדפדפן הזה אין קולות עבריים. פתח את האתר ב-Edge כדי להקריא מכאן, או עבור ל-Gemini (הקול יוצא ישר מ-OBS).":"בדפדפן הזה אין קולות עבריים – פתח את האתר ב-Microsoft Edge והפעל שם הקראה."):"אף לשונית לא מקריאה כרגע – ההקראות מחכות.";
- speakerStatus();updateServerOff();
+ speakerStatus();updateServerOff();renderNp(s);
  // OBS
  $("obsUrl").value=location.origin+s.overlayPath;$("obsDot").className="dot "+(s.overlays?"on":"warn");
  $("obsText").textContent=s.overlays?"פתוח ב-OBS ✓":"לא פתוח ב-OBS כרגע";
@@ -383,6 +434,37 @@ act("hearBtn",async()=>{if(mode==="edge"){await new Promise(res=>{const used=spe
 act("copyBtn",async()=>{await navigator.clipboard.writeText($("obsUrl").value);toast("הקישור הועתק ✓ – הדבק אותו ב-OBS");});
 $("previewBtn").onclick=()=>window.open($("obsUrl").value+"?demo=1","_blank");
 act("rotateBtn",async()=>{if(!confirm("ליצור קישור חדש? הקישור הישן יפסיק לעבוד, וצריך להדביק את החדש ב-OBS."))return;await post("rotate");toast("נוצר קישור חדש – עדכן אותו ב-OBS");});
+
+// ── Now Playing ──
+let npTheme="classic",npLoaded=false,npTimer=null,npPrevKey="";
+function npCollect(){return{theme:npTheme,accent:$("npAccent").value,opacity:+$("npOpacity").value/100,scale:+$("npScale").value/100,hidePaused:$("npHidePaused").checked,compact:$("npCompact").checked};}
+function npShowRange(){$("npOpacityV").textContent=$("npOpacity").value+"%";$("npScaleV").textContent=$("npScale").value+"%";}
+function npPreview(){if(!state)return;const c=npCollect();const q=new URLSearchParams({demo:"1",theme:c.theme,accent:c.accent,opacity:String(c.opacity),scale:String(c.scale)});
+ const src=state.np.path+"?"+q;if(src!==npPrevKey){npPrevKey=src;$("npPreview").src=src;}}
+function npSave(){npShowRange();npPreview();clearTimeout(npTimer);npTimer=setTimeout(()=>post("np-settings",{settings:npCollect()}).catch(e=>toast(e.message,true)),400);}
+function npLoad(s){$("npAccent").value=s.accent;$("npOpacity").value=Math.round(s.opacity*100);$("npScale").value=Math.round(s.scale*100);
+ $("npHidePaused").checked=s.hidePaused;$("npCompact").checked=s.compact;npTheme=s.theme;pick("#npThemes .chip","theme",s.theme);npShowRange();}
+document.querySelectorAll("#npThemes .chip").forEach(c=>c.onclick=()=>{npTheme=c.dataset.theme;pick("#npThemes .chip","theme",npTheme);npSave();});
+for(const id of ["npAccent","npOpacity","npScale"])$(id).oninput=npSave;
+for(const id of ["npHidePaused","npCompact"])$(id).onchange=npSave;
+function renderNp(s){const n=s.np;if(!n)return;if(!npLoaded){npLoad(n.settings);$("npClientId").value=n.clientId||"";npLoaded=true;}
+ $("npRedirect").value=location.origin+"/spotify/callback";
+ const url=location.origin+n.path;$("npUrl").value=url;$("npUrl2").value=url;
+ $("npDot").className="dot "+(n.connected?"on":"warn");
+ $("npStatus").textContent=n.connected?"מחובר לספוטיפיי ✓":n.clientId?"עוד לא מחובר":"צריך הגדרה חד-פעמית";
+ $("npStatusHint").textContent=n.connected?"השיר שמתנגן יופיע ב-OBS.":n.clientId?"לחץ \"התחבר לספוטיפיי\" ואשר.":"פתח את ההגדרה למטה – יוצרים אפליקציה בספוטיפיי ומדביקים Client ID.";
+ $("npConnect").classList.toggle("hidden",n.connected);$("npDisconnect").classList.toggle("hidden",!n.connected);
+ if(!n.clientId)$("npSetup").open=true;
+ $("npError").textContent=n.error||"";$("npError").classList.toggle("hidden",!n.error);
+ const w=n.widgets?"פתוח ב-OBS ✓":"לא פתוח ב-OBS כרגע";$("npWText").textContent=w;$("npObsText").textContent=w;
+ $("npWDot").className=$("npObsDot").className="dot "+(n.widgets?"on":"warn");npPreview();}
+act("npSaveClient",async()=>{await post("spotify-client",{clientId:$("npClientId").value.trim()});toast("נשמר ✓ – עכשיו לחץ \"התחבר לספוטיפיי\"");});
+$("npConnect").onclick=()=>{if(!state?.np?.clientId){$("npSetup").open=true;toast("קודם מדביקים Client ID (בהגדרה למטה)",true);return;}location.href="/spotify/login";};
+act("npDisconnect",async()=>{if(!confirm("לנתק את ספוטיפיי? הווידג'ט יפסיק להציג שירים."))return;await post("spotify-disconnect");toast("ספוטיפיי נותק");});
+act("npCopy",async()=>{await navigator.clipboard.writeText($("npUrl").value);toast("הקישור הועתק ✓ – הדבק אותו ב-OBS");});
+act("npCopy2",async()=>{await navigator.clipboard.writeText($("npUrl2").value);toast("הקישור הועתק ✓");});
+act("npCopyRedirect",async()=>{await navigator.clipboard.writeText($("npRedirect").value);toast("הועתק ✓ – הדבק ב-Redirect URIs בספוטיפיי");});
+{const sp=new URLSearchParams(location.search).get("sp");if(sp){toast(sp==="ok"?"✓ ספוטיפיי מחובר!":"ההתחברות לספוטיפיי נכשלה – בדוק שה-Redirect URI הודבק בדיוק",sp!=="ok");history.replaceState(null,"","/app"+location.hash);}}
 
 // ── חיבור חי ──
 let retry=1000;function connect(){const ws=new WebSocket((location.protocol==="https:"?"wss://":"ws://")+location.host+"/api/ws");

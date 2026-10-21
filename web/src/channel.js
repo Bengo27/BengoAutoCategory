@@ -9,6 +9,7 @@ import { defaultSettings, sanitizeSettings, checkMessage, applyTemplate, synthes
 /** פריט שקשור לקנייה בקיק (ולא בדיקה או הודעת צ'אט) – רק לו מאשרים/מחזירים נקודות. */
 const isRedemption = (item) => !item.test && !item.chat;
 import { seal, unseal, randomId } from "./crypto.js";
+import { npDefaults, sanitizeNp, validClientId, spotifyExchange, spotifyRefresh } from "./nowplaying.js";
 
 const KEEP_FINISHED = 40;
 const REWARD_COLOR = "#2DD4BF";
@@ -95,6 +96,10 @@ export class ChannelDO {
         case "voice-test": return await this.voiceTest(body);
         case "logout": await this.logout(); break;
         case "clear": await this.clearQueue(); break;
+        case "np-settings": this.np().settings = sanitizeNp(body.settings, this.np().settings); await this.save(); this.sendNpConfig(); break;
+        case "spotify-client": await this.setSpotifyClient(body.clientId); break;
+        case "spotify-tokens": await this.spotifyConnect(body); break;
+        case "spotify-disconnect": await this.spotifyDisconnect(); break;
         default: return json({ error: "unknown" }, 404);
       }
       this.broadcast();
@@ -594,10 +599,17 @@ export class ChannelDO {
   acceptSocket(request, url) {
     if (request.headers.get("Upgrade") !== "websocket") return new Response("expected websocket", { status: 426 });
     const asked = url.searchParams.get("role");
-    const role = asked === "overlay" ? "overlay" : asked === "speaker" ? "speaker" : "dashboard";
-    if (role === "overlay" && !this.checkKey(url.searchParams.get("key"))) return new Response("forbidden", { status: 403 });
+    const role = ["overlay", "speaker", "np"].includes(asked) ? asked : "dashboard";
+    if ((role === "overlay" || role === "np") && !this.checkKey(url.searchParams.get("key"))) return new Response("forbidden", { status: 403 });
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair);
+    if (role === "np") {
+      // ווידג'ט Now Playing: מקבל עיצוב + טוקן, ושואל את ספוטיפיי בעצמו
+      this.state.acceptWebSocket(server, [role]);
+      server.send(JSON.stringify({ type: "config", settings: this.np().settings }));
+      this.broadcast();
+      return new Response(null, { status: 101, webSocket: client });
+    }
     // רק לשונית אחת מקריאה – החדשה מחליפה את הקודמת (אחרת ההקראה עלולה ללכת ללשונית בלי קולות)
     if (role === "speaker") for (const ws of this.sockets("speaker")) try { ws.close(4002, "replaced"); } catch {}
     this.state.acceptWebSocket(server, [role]);
@@ -618,6 +630,14 @@ export class ChannelDO {
   async webSocketMessage(ws, message) {
     let m;
     try { m = JSON.parse(typeof message === "string" ? message : new TextDecoder().decode(message)); } catch { return; }
+    if (m.type === "token" && this.sockets("np").includes(ws)) {
+      const now = this.now();
+      if (now - (ws.lastTokenAsk || 0) < 1000) return; // הגנה מהצפה
+      ws.lastTokenAsk = now;
+      const t = await this.spotifyToken().catch(() => null);
+      try { ws.send(JSON.stringify({ type: "token", access: t?.access || null, expires: t?.expires || 0 })); } catch {}
+      return;
+    }
     // הווידג'ט (מצב שרת) או הלשונית המקריאה (מצב Edge) מדווחים שההקראה הסתיימה
     if (m.type === "done" && m.id) await this.finish(String(m.id), m.error ? "failed" : "done", m.error ? String(m.error).slice(0, 120) : null);
   }
@@ -635,13 +655,82 @@ export class ChannelDO {
   }
 
   closeOverlays() {
-    for (const ws of this.sockets("overlay")) try { ws.close(4003, "key changed"); } catch {}
+    for (const ws of [...this.sockets("overlay"), ...this.sockets("np")]) try { ws.close(4003, "key changed"); } catch {}
   }
 
   broadcast() {
     if (!this.data) return;
     const text = JSON.stringify({ type: "state", state: this.view() });
     for (const ws of [...this.sockets("dashboard"), ...this.sockets("speaker")]) try { ws.send(text); } catch {}
+  }
+
+  // ───────────────────────── Now Playing ─────────────────────────
+
+  np() {
+    this.data.np ||= { settings: npDefaults(), clientId: "", auth: null, error: null };
+    return this.data.np;
+  }
+
+  sendNpConfig() {
+    const text = JSON.stringify({ type: "config", settings: this.np().settings });
+    for (const ws of this.sockets("np")) try { ws.send(text); } catch {}
+  }
+
+  async setSpotifyClient(id) {
+    const clientId = String(id || "").trim();
+    if (!validClientId(clientId)) { const e = new Error("ה-Client ID לא תקין (32 תווים מאתר המפתחים של ספוטיפיי)."); e.status = 400; throw e; }
+    const np = this.np();
+    if (np.clientId !== clientId) np.auth = null; // אפליקציה אחרת → צריך להתחבר מחדש
+    np.clientId = clientId;
+    np.error = null;
+    await this.save();
+  }
+
+  async spotifyConnect({ code, verifier, redirect }) {
+    const np = this.np();
+    try {
+      const t = await spotifyExchange(np.clientId, String(code || ""), String(verifier || ""), String(redirect || ""));
+      np.auth = { access: await seal(this.env, t.access), refresh: await seal(this.env, t.refresh), expires: t.expires };
+      np.error = null;
+    } catch (e) {
+      np.error = e.message; await this.save(); throw e;
+    }
+    await this.save();
+    await this.pushNpTokens();
+  }
+
+  async spotifyDisconnect() {
+    const np = this.np();
+    np.auth = null; np.error = null;
+    await this.save();
+    for (const ws of this.sockets("np")) try { ws.send(JSON.stringify({ type: "token", access: null, expires: 0 })); } catch {}
+  }
+
+  /** טוקן בתוקף לספוטיפיי (מתחדש לבד). */
+  async spotifyToken() {
+    const np = this.np();
+    if (!np.auth) return null;
+    if (np.auth.expires - 60_000 > this.now()) return { access: await unseal(this.env, np.auth.access), expires: np.auth.expires };
+    if (this.spRefreshing) return this.spRefreshing;
+    this.spRefreshing = (async () => {
+      try {
+        const t = await spotifyRefresh(np.clientId, await unseal(this.env, np.auth.refresh));
+        np.auth = { access: await seal(this.env, t.access), refresh: t.refresh ? await seal(this.env, t.refresh) : np.auth.refresh, expires: t.expires };
+        np.error = null;
+        await this.save();
+        return { access: t.access, expires: t.expires };
+      } catch (e) {
+        if (e.code === "invalid_grant" || e.status === 400 || e.status === 401) { np.auth = null; np.error = e.message; await this.save(); this.broadcast(); }
+        throw e;
+      } finally { this.spRefreshing = null; }
+    })();
+    return this.spRefreshing;
+  }
+
+  async pushNpTokens() {
+    const t = await this.spotifyToken().catch(() => null);
+    const text = JSON.stringify({ type: "token", access: t?.access || null, expires: t?.expires || 0 });
+    for (const ws of this.sockets("np")) try { ws.send(text); } catch {}
   }
 
   serveAudio(url) {
@@ -674,6 +763,8 @@ export class ChannelDO {
       items: [...open.sort((a, b) => (a.status === "playing" ? -1 : b.status === "playing" ? 1 : 0)), ...done]
         .map(({ id, user, text, at, status, note, test, chat }) => ({ id, user, text, at, status, note, test, chat: !!chat })),
       chatSubscribed: !!d.chatSubscribed,
+      np: (() => { const n = this.np(); return { settings: n.settings, clientId: n.clientId, connected: !!n.auth, error: n.error,
+        widgets: this.sockets("np").length, path: `/np/${d.user?.id}-${d.overlayKey}` }; })(),
       channel: d.channel || null,
       stats: d.stats && d.stats.day === new Date(this.now() + 3 * 3600_000).toISOString().slice(0, 10) ? d.stats : { total: 0, chat: 0, reward: 0 },
     };

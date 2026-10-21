@@ -42,6 +42,14 @@ class FakeKick {
       this.counter++; this.access = "acc-" + this.counter; this.refresh = "ref-" + this.counter;
       return J(200, { access_token: this.access, refresh_token: this.refresh, expires_in: 3600, scope: "user:read channel:read channel:rewards:read channel:rewards:write events:subscribe" });
     }
+    if (url.startsWith("https://accounts.spotify.com/api/token")) {
+      const f = new URLSearchParams(body);
+      this.spotifyCalls = (this.spotifyCalls || 0) + 1;
+      if (f.get("client_secret")) return J(400, { error: "secret_must_not_be_sent" });
+      if (f.get("grant_type") === "authorization_code" && (f.get("code") !== "sp-code" || f.get("code_verifier") !== "ver")) return J(400, { error: "invalid_grant" });
+      if (f.get("grant_type") === "refresh_token" && f.get("refresh_token") !== "sp-ref") return J(400, { error: "invalid_grant" });
+      return J(200, { access_token: "sp-acc-" + this.spotifyCalls, refresh_token: "sp-ref", expires_in: 3600 });
+    }
     if (url.startsWith("https://id.kick.com/oauth/revoke")) return new Response("", { status: 200 });
     const auth = new Headers(init.headers || {}).get("Authorization");
     if (auth !== "Bearer " + this.access) return J(401, { message: "Unauthorized" });
@@ -456,6 +464,61 @@ await test("worker routes", async () => {
   check(page.includes("/ws") && page.includes('dir="rtl"'), "overlay page");
   check((await W("/kick/webhook", { method: "POST", body: "{}" })).status === 401, "unsigned webhook rejected");
   check((await W("/nope")).status === 404, "404");
+});
+
+await test("now playing (spotify)", async () => {
+  const { sanitizeNp, validClientId } = await import("../src/nowplaying.js");
+  check(sanitizeNp({ theme: "vinyl", accent: "#ff0000", opacity: 5, scale: 0.1 }).theme === "vinyl" && sanitizeNp({ opacity: 5 }).opacity === 1 && sanitizeNp({ scale: 0.1 }).scale === 0.6, "np sanitize clamps");
+  check(sanitizeNp({ theme: "evil", accent: "red;x" }).theme === "classic" && sanitizeNp({ accent: "red;x" }).accent === "#a6ef67", "np sanitize rejects junk");
+  check(validClientId("0123456789abcdef0123456789abcdef") && !validClientId("abc"), "client id format");
+  const { o, call, d } = await freshChannel();
+  check((await call("spotify-client", { clientId: "bad" })).status === 400, "bad client id rejected");
+  const CID = "0123456789abcdef0123456789abcdef";
+  check((await call("spotify-client", { clientId: CID })).status === 200 && d().np.clientId === CID, "client id saved");
+  check((await call("spotify-tokens", { code: "wrong", verifier: "ver", redirect: "https://x/spotify/callback" })).status === 400 && !d().np.auth, "bad code rejected");
+  const ws = o.state.addSocket("np");
+  check((await call("spotify-tokens", { code: "sp-code", verifier: "ver", redirect: "https://x/spotify/callback" })).status === 200, "spotify connected");
+  check(!JSON.stringify(d().np.auth).includes("sp-acc") && !JSON.stringify(d().np.auth).includes("sp-ref"), "spotify tokens sealed at rest");
+  check(ws.last("token")?.access?.startsWith("sp-acc"), "widget got token on connect");
+  let st = (await call("state")).json;
+  check(st.np.connected && st.np.path === `/np/123-${d().overlayKey}` && !JSON.stringify(st).includes("sp-acc"), "state hides token");
+  await o.obj.webSocketMessage(ws, JSON.stringify({ type: "token" }));
+  check(ws.sent.filter((m) => m.type === "token").length === 2, "widget can ask for token");
+  d().np.auth.expires = Date.now() - 1000;
+  ws.lastTokenAsk = 0;
+  const before = kick.spotifyCalls;
+  await o.obj.webSocketMessage(ws, JSON.stringify({ type: "token" }));
+  check(kick.spotifyCalls === before + 1 && ws.last("token").access === "sp-acc-" + (before + 1), "expired token refreshed");
+  await call("np-settings", { settings: { theme: "neon" } });
+  check(ws.last("config")?.settings.theme === "neon" && d().np.settings.theme === "neon", "settings pushed to widget");
+  await call("spotify-disconnect", {});
+  check(!d().np.auth && ws.last("token").access === null, "disconnect");
+  await call("rotate", {});
+  check(ws.readyState === 3, "rotating key closes np widget");
+});
+
+await test("now playing routes", async () => {
+  objects.clear(); kick.reset();
+  const W = (path, init) => worker.fetch(new Request("https://catego.test" + path, init), env);
+  const stub = env.CHANNEL.get("123");
+  await stub.fetch("https://channel/init", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ user: { id: 123, name: "Bengo23", slug: "bengo23" }, tokens: { access: kick.access, refresh: kick.refresh, expires: Date.now() + 3600_000 } }) });
+  const session = await signSession(env, 123);
+  const C = { Cookie: "catego_session=" + session };
+  check((await W("/spotify/login")).headers.get("Location") === "/", "spotify login needs session");
+  check((await W("/spotify/login", { headers: C })).headers.get("Location") === "/app#np", "no client id → back to dashboard");
+  const P = (op, b) => W("/api/" + op, { method: "POST", headers: { ...C, Origin: "https://catego.test", "Content-Type": "application/json" }, body: JSON.stringify(b) });
+  check((await P("spotify-client", { clientId: "0123456789abcdef0123456789abcdef" })).status === 200, "set client via API");
+  check((await P("clear", {})).status === 200, "clear is an API op");
+  const r = await W("/spotify/login", { headers: C });
+  const loc = new URL(r.headers.get("Location"));
+  check(loc.origin === "https://accounts.spotify.com" && loc.searchParams.get("redirect_uri") === "https://catego.test/spotify/callback" && loc.searchParams.get("code_challenge_method") === "S256" && loc.searchParams.get("scope") === "user-read-currently-playing", "spotify authorize redirect");
+  const sp = r.headers.get("Set-Cookie").match(/catego_sp=([^;]+)/)[1];
+  const state = decodeURIComponent(sp).split(".")[0];
+  check((await W("/spotify/callback?code=sp-code&state=WRONG", { headers: { Cookie: C.Cookie + "; catego_sp=" + sp } })).headers.get("Location") === "/app?sp=error#np", "spotify state mismatch");
+  const st = (await (await W("/api/state", { headers: C })).json());
+  const page = await (await W(st.np.path)).text();
+  check(page.includes("api.spotify.com") && page.includes('data-theme="vinyl"'), "np widget page");
+  check(!(await (await W("/np/123-wrongkeywrongkey")).text()).includes("api.spotify.com"), "np wrong key → empty");
 });
 
 console.log(failed ? `\n${failed} FAILED (${passed} checks passed)` : `\nAll web tests passed (${passed} checks)`);

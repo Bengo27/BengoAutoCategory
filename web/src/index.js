@@ -10,6 +10,7 @@ import { KICK, SCOPES, exchangeCode, getMe, verifyWebhook, REDEMPTION_EVENT, CHA
 import { signSession, verifySession, pkce, randomId, cookies } from "./crypto.js";
 import { landingPage, overlayPage } from "./pages.js";
 import { dashboardPage } from "./dashboard.js";
+import { SPOTIFY, validClientId, nowPlayingPage } from "./nowplaying.js";
 
 export { ChannelDO };
 
@@ -56,9 +57,12 @@ export default {
       }
       if (path === "/kick/webhook" && request.method === "POST") return webhook(request, env);
       if (path.startsWith("/o/")) return overlay(request, env, url);
+      if (path.startsWith("/np/")) return npOverlay(request, env, url);
       if (path.startsWith("/auth/")) return auth(request, env, url);
 
       const uid = await verifySession(env, cookies(request).catego_session).catch(() => null);
+
+      if (path.startsWith("/spotify/")) return uid ? spotify(request, env, url, uid) : redirect("/");
 
       if (path === "/") return uid ? redirect("/app") : html(landingPage({ error: url.searchParams.get("error") }));
       if (path === "/app") return uid ? html(dashboardPage()) : redirect("/");
@@ -126,7 +130,8 @@ const sameOrigin = (request, url) => request.headers.get("Origin") === url.origi
 
 // ───────────────────────── לוח הבקרה ─────────────────────────
 
-const POST_OPS = new Set(["settings", "enable", "reward", "skip", "pause", "approve", "reject", "test", "rotate", "voice-test"]);
+const POST_OPS = new Set(["settings", "enable", "reward", "skip", "pause", "approve", "reject", "test", "rotate", "voice-test", "clear",
+  "np-settings", "spotify-client", "spotify-disconnect"]);
 
 async function api(request, env, url, uid) {
   const op = url.pathname.slice("/api/".length);
@@ -163,6 +168,46 @@ async function overlay(request, env, url) {
   if (check.status !== 200) return html("<!doctype html><meta charset=utf-8><body style='background:transparent'></body>", {});
   // הווידג'ט נטען בתוך OBS – בלי X-Frame-Options כדי שיהיה אפשר להציג תצוגה מקדימה בלוח הבקרה
   return new Response(overlayPage(), { headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", "Referrer-Policy": "no-referrer" } });
+}
+
+// ───────────────────────── Now Playing (ספוטיפיי) ─────────────────────────
+
+async function spotify(request, env, url, uid) {
+  const redirectUri = url.origin + "/spotify/callback";
+  if (url.pathname === "/spotify/login") {
+    const st = await (await call(env, uid, "state")).json().catch(() => ({}));
+    const clientId = st?.np?.clientId;
+    if (!validClientId(clientId)) return redirect("/app#np");
+    const { verifier, challenge } = await pkce();
+    const state = randomId(18);
+    const q = new URLSearchParams({
+      response_type: "code", client_id: clientId, redirect_uri: redirectUri, scope: SPOTIFY.scope,
+      code_challenge: challenge, code_challenge_method: "S256", state,
+    });
+    return redirect(`${SPOTIFY.authorize}?${q}`, { "Set-Cookie": cookie("catego_sp", `${state}.${verifier}`, 600, "/spotify") });
+  }
+  if (url.pathname === "/spotify/callback") {
+    const [state, verifier] = (cookies(request).catego_sp || "").split(".");
+    const clear = cookie("catego_sp", "", 0, "/spotify");
+    if (url.searchParams.get("error") || !state || state !== url.searchParams.get("state") || !url.searchParams.get("code")) {
+      return redirect("/app?sp=error#np", { "Set-Cookie": clear });
+    }
+    const r = await call(env, uid, "spotify-tokens", { method: "POST", body: { code: url.searchParams.get("code"), verifier, redirect: redirectUri } });
+    return redirect(r.ok ? "/app?sp=ok#np" : "/app?sp=error#np", { "Set-Cookie": clear });
+  }
+  return json({ error: "not_found" }, 404);
+}
+
+async function npOverlay(request, env, url) {
+  // /np/<userId>-<key>[/ws]
+  const m = url.pathname.match(/^\/np\/(\d+)-([A-Za-z0-9_-]{10,64})(\/ws)?$/);
+  if (!m) return json({ error: "not_found" }, 404);
+  const [, uid, key, sub] = m;
+  const q = `?key=${encodeURIComponent(key)}`;
+  if (sub === "/ws") return call(env, uid, "ws", { query: q + "&role=np", request });
+  const check = await call(env, uid, "overlay", { query: q });
+  if (check.status !== 200 && !url.searchParams.has("demo")) return html("<!doctype html><meta charset=utf-8><body style='background:transparent'></body>", {});
+  return new Response(nowPlayingPage(), { headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", "Referrer-Policy": "no-referrer" } });
 }
 
 // ───────────────────────── Webhook מקיק ─────────────────────────
