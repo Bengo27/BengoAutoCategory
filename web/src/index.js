@@ -126,7 +126,13 @@ async function auth(request, env, url) {
   return json({ error: "not_found" }, 404);
 }
 
-const sameOrigin = (request, url) => request.headers.get("Origin") === url.origin;
+// הגנה מ-CSRF. בטפסים הדפדפן שולח Origin: null (בגלל Referrer-Policy: no-referrer),
+// ואז סומכים על Sec-Fetch-Site שהדפדפן מוסיף בעצמו ואתר זר לא יכול לזייף.
+const sameOrigin = (request, url) => {
+  const origin = request.headers.get("Origin");
+  if (origin && origin !== "null") return origin === url.origin;
+  return request.headers.get("Sec-Fetch-Site") === "same-origin";
+};
 
 // ───────────────────────── לוח הבקרה ─────────────────────────
 

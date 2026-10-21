@@ -465,6 +465,10 @@ await test("worker routes", async () => {
   check((await W("/kick/webhook", { method: "POST", body: "{}" })).status === 401, "unsigned webhook rejected");
   check((await W("/nope")).status === 404, "404");
   check(loc.searchParams.get("scope").includes("kicks:read"), "login asks for kicks:read");
+  r = await W("/auth/logout", { method: "POST", headers: { ...C, Origin: "null", "Sec-Fetch-Site": "cross-site" } });
+  check(r.status === 403, "cross-site logout blocked");
+  r = await W("/auth/logout", { method: "POST", headers: { ...C, Origin: "null", "Sec-Fetch-Site": "same-origin" } });
+  check(r.status === 302 && r.headers.get("Location") === "/" && /catego_session=;/.test(r.headers.get("Set-Cookie")), "logout form works (Origin: null)");
 });
 
 await test("alerts (kicks / follow / sub / gift)", async () => {
