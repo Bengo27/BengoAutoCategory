@@ -27,6 +27,11 @@ export function defaultSettings() {
     maxAgeMinutes: 10,
     gapSeconds: 2,
     banned: [...DEFAULT_BANNED],
+    // הקראה מהצ'אט: "!tts הודעה"
+    chatEnabled: false,
+    chatPrefix: "!tts",
+    chatWho: "all", // all | subs | vip | mods
+    chatCooldown: 60,
   };
 }
 
@@ -51,10 +56,40 @@ export function sanitizeSettings(input, old = defaultSettings()) {
   if ("manualApproval" in i) s.manualApproval = !!i.manualApproval;
   if ("maxAgeMinutes" in i) s.maxAgeMinutes = clamp(i.maxAgeMinutes, 1, 1440, s.maxAgeMinutes);
   if ("gapSeconds" in i) s.gapSeconds = clamp(i.gapSeconds, 0, 60, s.gapSeconds);
+  if ("chatEnabled" in i) s.chatEnabled = !!i.chatEnabled;
+  if ("chatPrefix" in i) s.chatPrefix = validPrefix(i.chatPrefix) ? i.chatPrefix.trim() : (validPrefix(s.chatPrefix) ? s.chatPrefix : d.chatPrefix);
+  if ("chatWho" in i && ["all", "subs", "vip", "mods"].includes(i.chatWho)) s.chatWho = i.chatWho;
+  if ("chatCooldown" in i) s.chatCooldown = clamp(i.chatCooldown, 0, 3600, s.chatCooldown);
   if ("banned" in i && Array.isArray(i.banned)) {
     s.banned = [...new Set(i.banned.filter((w) => typeof w === "string").map((w) => w.trim()).filter(Boolean))].slice(0, 500);
   }
   return s;
+}
+
+/** הסימן חייב להתחיל בתו שאינו אות/ספרה (כדי ששאר הצ'אט לא יגיע לשרת בכלל). */
+export const validPrefix = (p) => typeof p === "string" && /^[^\p{L}\p{N}\s]\S{0,9}$/u.test(p.trim());
+
+/** האם ההודעה היא פקודת הקראה – מחזיר את הטקסט (בלי הסימן) או null. */
+export function chatCommandText(content, prefix) {
+  const c = String(content || "").trim();
+  const p = String(prefix || "").trim();
+  if (!p || c.length <= p.length || c.slice(0, p.length).toLowerCase() !== p.toLowerCase()) return null;
+  const rest = c.slice(p.length);
+  // "!tts" לא תופס את "!ttsx", אבל "!" תופס את "!שלום"
+  if (/[\p{L}\p{N}]$/u.test(p) && !/^\s/.test(rest)) return null;
+  const text = rest.trim();
+  return text || null;
+}
+
+/** מי רשאי להשתמש בפקודה לפי ההגדרה ותגי המשתמש. */
+export function chatAllowed(who, badges) {
+  const b = new Set(badges);
+  const mod = b.has("broadcaster") || b.has("moderator");
+  if (who === "mods") return mod;
+  const vip = mod || b.has("vip");
+  if (who === "vip") return vip;
+  if (who === "subs") return vip || b.has("subscriber") || b.has("founder") || b.has("og");
+  return true;
 }
 
 const EMOTE = /\[emote:\d+:[^\]]*\]/g;

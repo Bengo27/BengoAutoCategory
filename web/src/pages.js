@@ -166,6 +166,26 @@ border-radius:10px;opacity:0;transition:opacity .3s;pointer-events:none;max-widt
 </section>
 
 <section class="card">
+  <h2>הקראה מהצ'אט</h2>
+  <div class="row" style="padding-top:0"><div class="lbl">הקראת הודעות צ'אט עם סימן<small>למשל <b dir="ltr">!tts אחי איזה משחק</b> – בלי נקודות, ישר מהצ'אט.</small></div>
+    <label class="switch"><input type="checkbox" id="chatEnabled"><span></span></label></div>
+  <div class="grid2">
+    <div class="field"><label>הסימן</label><input type="text" id="chatPrefix" dir="ltr" maxlength="10" style="width:140px">
+      <small>חייב להתחיל בסימן כמו ! # . ~</small></div>
+    <div class="field"><label>השהיה לכל צופה (שניות)</label><input type="number" class="num" id="chatCooldown" min="0" max="3600">
+      <small>מודים ואתה – בלי השהיה</small></div>
+  </div>
+  <div class="field" style="margin-top:10px"><label>מי יכול להשתמש</label>
+    <div class="chips" id="chatWho">
+      <button class="chip" data-who="all">כולם</button>
+      <button class="chip" data-who="subs">סאבים ומעלה</button>
+      <button class="chip" data-who="vip">VIP ומודים</button>
+      <button class="chip" data-who="mods">רק מודים</button>
+    </div></div>
+  <p class="muted" style="margin:10px 0 0">אותם כללים כמו בפרס: מילים חסומות, קישורים, אורך ואישור ידני. הודעה שנחסמת פשוט לא מוקראת. המתג הראשי למעלה מכבה גם את הצ'אט.</p>
+</section>
+
+<section class="card">
   <h2>מה מוקרא, ושמירה על השידור</h2>
   <div class="field"><label>נוסח ההקראה</label><input type="text" id="template"><small>{user} = שם הצופה, {text} = ההודעה</small></div>
   <div class="row"><div class="lbl">אישור ידני לפני הקראה<small>כל הודעה מחכה עד שתלחץ "הקרא" או "דחה".</small></div>
@@ -185,7 +205,7 @@ border-radius:10px;opacity:0;transition:opacity .3s;pointer-events:none;max-widt
 </main>
 <div id="toast"></div>
 <script>
-const $=id=>document.getElementById(id);let state=null,formLoaded=false,voice="he-IL-HilaNeural",mode="edge",speakerWs=null,speakerOn=false;
+const $=id=>document.getElementById(id);let state=null,formLoaded=false,voice="he-IL-HilaNeural",mode="edge",chatWho="all",speakerWs=null,speakerOn=false;
 const STATUS={playing:"🔊 מוקרא עכשיו",waiting:"בתור",approval:"ממתין לאישור",done:"הוקרא",skipped:"דולג",rejected:"נדחה – הנקודות הוחזרו",failed:"נכשל"};
 function toast(t,bad){const e=$("toast");e.textContent=t;e.className="show"+(bad?" bad":"");clearTimeout(e._t);e._t=setTimeout(()=>e.className="",3500);}
 async function post(op,body={}){const r=await fetch("/api/"+op,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
@@ -194,6 +214,8 @@ async function post(op,body={}){const r=await fetch("/api/"+op,{method:"POST",he
 function act(id,fn){$(id).onclick=async()=>{const b=$(id);b.disabled=true;try{await fn();}catch(e){toast(e.message,true);}finally{b.disabled=false;}};}
 function setVoice(v){voice=v;document.querySelectorAll(".chip").forEach(c=>c.classList.toggle("sel",c.dataset.voice===v));}
 document.querySelectorAll("#voices .chip").forEach(c=>c.onclick=()=>setVoice(c.dataset.voice));
+function setWho(w){chatWho=w;document.querySelectorAll("#chatWho .chip").forEach(c=>c.classList.toggle("sel",c.dataset.who===w));}
+document.querySelectorAll("#chatWho .chip").forEach(c=>c.onclick=()=>setWho(c.dataset.who));
 function setMode(m){mode=m;document.querySelectorAll("#modes .chip").forEach(c=>c.classList.toggle("sel",c.dataset.mode===m));
  $("edgePanel").classList.toggle("hidden",m!=="edge");$("serverPanel").classList.toggle("hidden",m!=="server");}
 document.querySelectorAll("#modes .chip").forEach(c=>c.onclick=async()=>{const m=c.dataset.mode;if(m==="server"&&state&&!state.serverTts){toast("מצב שרת עוד לא הוגדר (חסר מפתח Azure)",true);return;}
@@ -234,11 +256,12 @@ $("speakerBtn").onclick=()=>{if(speakerOn){speakerOn=false;try{speakerWs.close()
 window.addEventListener("beforeunload",e=>{if(speakerOn){e.preventDefault();e.returnValue="";}});
 function showRange(){const r=+$("rate").value;$("rateV").textContent=r===0?"רגילה":(r>0?"+":"")+r+"%";$("volumeV").textContent=$("volume").value+"%";}
 $("rate").oninput=$("volume").oninput=showRange;
-function loadForm(s){for(const k of["rewardTitle","rewardCost","rewardDescription","template","maxChars","gapSeconds","maxAgeMinutes","rate","volume"])$(k).value=s[k];
+function loadForm(s){for(const k of["rewardTitle","rewardCost","rewardDescription","template","maxChars","gapSeconds","maxAgeMinutes","rate","volume","chatPrefix","chatCooldown"])$(k).value=s[k];
+ $("chatEnabled").checked=!!s.chatEnabled;setWho(s.chatWho||"all");
  $("manualApproval").checked=s.manualApproval;$("blockLinks").checked=s.blockLinks;$("banned").value=(s.banned||[]).join("\\n");setVoice(s.voice);showRange();}
 function collect(){return{rewardTitle:$("rewardTitle").value,rewardCost:+$("rewardCost").value,rewardDescription:$("rewardDescription").value,template:$("template").value,
  maxChars:+$("maxChars").value,gapSeconds:+$("gapSeconds").value,maxAgeMinutes:+$("maxAgeMinutes").value,rate:+$("rate").value,volume:+$("volume").value,
- manualApproval:$("manualApproval").checked,blockLinks:$("blockLinks").checked,voice,playback:mode,banned:$("banned").value.split(/\\n|,/).map(x=>x.trim()).filter(Boolean)};}
+ manualApproval:$("manualApproval").checked,blockLinks:$("blockLinks").checked,voice,playback:mode,chatEnabled:$("chatEnabled").checked,chatPrefix:$("chatPrefix").value.trim(),chatCooldown:+$("chatCooldown").value,chatWho,banned:$("banned").value.split(/\\n|,/).map(x=>x.trim()).filter(Boolean)};}
 function render(s){state=s;const st=s.settings;if(!formLoaded){loadForm(st);formLoaded=true;}
  $("who").textContent=s.user?.name||"";$("enabled").checked=st.enabled;$("obsUrl").value=location.origin+s.overlayPath;
  $("rewardBtn").textContent=s.rewardId?"עדכן את הפרס בקיק":"צור פרס בקיק";$("pauseBtn").textContent=s.paused?"▶ המשך תור":"⏸ השהה תור";
@@ -258,12 +281,14 @@ function render(s){state=s;const st=s.settings;if(!formLoaded){loadForm(st);form
  if(!s.items.length){const p=document.createElement("p");p.className="muted";p.style.margin="0";p.textContent="עוד אין הודעות. ברגע שצופה יקנה את הפרס – ההודעה תופיע כאן.";q.append(p);}
  for(const i of s.items){const row=document.createElement("div");row.className="q"+(["playing","waiting","approval"].includes(i.status)?"":" old");
   const body=document.createElement("div");body.className="body";const top=document.createElement("div");top.className="top";
-  const who=document.createElement("span");who.className="who";who.textContent=i.user;const meta=document.createElement("span");meta.className="meta";
+  const who=document.createElement("span");who.className="who";who.textContent=(i.chat?"💬 ":i.test?"🧪 ":"🎁 ")+i.user;const meta=document.createElement("span");meta.className="meta";
   meta.textContent=new Date(i.at).toLocaleTimeString("he-IL",{hour:"2-digit",minute:"2-digit"})+" · "+(STATUS[i.status]||i.status)+(i.note?" · "+i.note:"");
   top.append(who,meta);const tx=document.createElement("div");tx.className="text";tx.textContent=i.text;body.append(top,tx);row.append(body);
   if(i.status==="approval"){const b=document.createElement("button");b.className="primary";b.textContent="✓ הקרא";b.onclick=()=>post("approve",{id:i.id}).catch(e=>toast(e.message,true));row.append(b);}
   if((i.status==="approval"||i.status==="waiting")&&!i.test){const b=document.createElement("button");b.textContent="✕ דחה";b.title="דוחה ומחזיר לצופה את הנקודות";b.onclick=()=>post("reject",{id:i.id}).catch(e=>toast(e.message,true));row.append(b);}
   q.append(row);}}
+$("chatEnabled").onchange=async e=>{try{await post("settings",{settings:{chatEnabled:e.target.checked,chatPrefix:$("chatPrefix").value.trim(),chatWho,chatCooldown:+$("chatCooldown").value}});
+ toast(e.target.checked?"הקראה מהצ'אט הופעלה – כתבו "+$("chatPrefix").value.trim()+" ואחריו הודעה":"הקראה מהצ'אט כובתה");}catch(err){toast(err.message,true);e.target.checked=!e.target.checked;}};
 $("enabled").onchange=async e=>{try{await post("enable",{enabled:e.target.checked});}catch(err){toast(err.message,true);e.target.checked=!e.target.checked;}};
 act("rewardBtn",async()=>{await post("settings",{settings:collect()});await post("reward");toast("✓ הפרס מוכן בקיק");});
 act("pauseBtn",()=>post("pause",{paused:!state?.paused}));act("skipBtn",()=>post("skip"));

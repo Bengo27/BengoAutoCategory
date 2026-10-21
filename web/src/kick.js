@@ -8,6 +8,7 @@ export const KICK = {
 
 export const SCOPES = "user:read channel:read channel:rewards:read channel:rewards:write events:subscribe";
 export const REDEMPTION_EVENT = "channel.reward.redemption.updated";
+export const CHAT_EVENT = "chat.message.sent";
 
 export class KickError extends Error {
   constructor(message, status) {
@@ -135,16 +136,33 @@ export async function userNames(token, ids) {
   return map;
 }
 
-/** נרשם להתראות על קניית פרסים (Webhook). לא נרשם פעמיים. */
-export async function subscribeRedemptions(token) {
+/** נרשם להתראות מקיק (Webhook) על האירועים האלה. לא נרשם פעמיים לאותו אירוע. */
+export async function subscribeEvents(token, names) {
   const existing = await kickApi(token, "GET", "/events/subscriptions");
-  if ((existing?.data || []).some((s) => s.event === REDEMPTION_EVENT)) return true;
+  const have = new Set((existing?.data || []).map((s) => s.event));
+  const missing = names.filter((n) => !have.has(n));
+  if (!missing.length) return true;
   const j = await kickApi(token, "POST", "/events/subscriptions", {
-    events: [{ name: REDEMPTION_EVENT, version: 1 }], method: "webhook",
+    events: missing.map((name) => ({ name, version: 1 })), method: "webhook",
   });
-  const item = (j?.data || [])[0];
-  if (item?.error) throw new KickError("ההרשמה להתראות נכשלה: " + item.error, 400);
+  const bad = (j?.data || []).find((i) => i?.error);
+  if (bad) throw new KickError("ההרשמה להתראות נכשלה: " + bad.error, 400);
   return true;
+}
+
+export const subscribeRedemptions = (token) => subscribeEvents(token, [REDEMPTION_EVENT]);
+
+/** מבטל הרשמה לאירוע (למשל הצ'אט, כשמכבים הקראה מהצ'אט – חוסך בקשות). */
+export async function unsubscribeEvent(token, name) {
+  const existing = await kickApi(token, "GET", "/events/subscriptions");
+  const ids = (existing?.data || []).filter((s) => s.event === name).map((s) => s.id).filter(Boolean);
+  if (!ids.length) return;
+  await kickApi(token, "DELETE", "/events/subscriptions?" + ids.map((id) => "id=" + encodeURIComponent(id)).join("&"));
+}
+
+/** תגי המשתמש בצ'אט (broadcaster / moderator / vip / subscriber / og / founder …). */
+export function badgeTypes(sender) {
+  return (sender?.identity?.badges || []).map((b) => String(b?.type || "").toLowerCase()).filter(Boolean);
 }
 
 // ───────── אימות Webhook (RSA PKCS#1 v1.5 + SHA-256, לפי התיעוד של Kick) ─────────

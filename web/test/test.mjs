@@ -1,6 +1,6 @@
 // בדיקות לאתר (Node 20+): node web/test/test.mjs
 import worker, { ChannelDO } from "../src/index.js";
-import { checkMessage, defaultSettings, sanitizeSettings, containsWord, applyTemplate } from "../src/tts.js";
+import { checkMessage, defaultSettings, sanitizeSettings, containsWord, applyTemplate, chatCommandText, chatAllowed, validPrefix } from "../src/tts.js";
 import { signSession, verifySession, seal, unseal } from "../src/crypto.js";
 import { verifyWebhook } from "../src/kick.js";
 
@@ -69,8 +69,13 @@ class FakeKick {
       return J(200, { data: r });
     }
     if (path === "/events/subscriptions" && method === "GET") return J(200, { data: this.subscriptions });
+    if (path.startsWith("/events/subscriptions?") && method === "DELETE") {
+      const ids = new URL(url).searchParams.getAll("id");
+      this.subscriptions = this.subscriptions.filter((x) => !ids.includes(x.id));
+      return new Response(null, { status: 204 });
+    }
     if (path === "/events/subscriptions" && method === "POST") {
-      this.subscriptions.push({ event: JSON.parse(body).events[0].name });
+      for (const e of JSON.parse(body).events) this.subscriptions.push({ id: "sub-" + e.name, event: e.name });
       return J(200, { data: [{ name: "channel.reward.redemption.updated", version: 1, subscription_id: "s1", error: null }] });
     }
     return J(404, { message: "nope " + path });
@@ -307,6 +312,48 @@ await test("Edge mode: tab speaks for free, OBS shows the card", async () => {
   const req = new Request("https://channel/ws?role=speaker", { headers: { Upgrade: "websocket" } });
   try { o.obj.acceptSocket(req, new URL(req.url)); } catch {} // Node לא יודע ליצור תשובת 101
   check(tab.readyState === 3 && o.obj.sockets("speaker").length === 1, "new speaker tab replaces the old one");
+});
+
+await test("chat command parsing + permissions", () => {
+  check(chatCommandText("!tts שלום לכולם", "!tts") === "שלום לכולם", "basic");
+  check(chatCommandText("!TTS hi", "!tts") === "hi", "case-insensitive");
+  check(chatCommandText("!ttsx hi", "!tts") === null, "word prefix needs space");
+  check(chatCommandText("!שלום", "!") === "שלום", "single-symbol prefix");
+  check(chatCommandText("!tts", "!tts") === null && chatCommandText("hello", "!tts") === null, "empty / no prefix");
+  check(validPrefix("!tts") && validPrefix("#") && !validPrefix("tts") && !validPrefix("! x"), "prefix must start with a symbol");
+  check(sanitizeSettings({ chatPrefix: "tts" }).chatPrefix === "!tts", "invalid prefix rejected");
+  check(chatAllowed("all", []) && !chatAllowed("subs", []) && chatAllowed("subs", ["subscriber"]), "subs");
+  check(chatAllowed("vip", ["vip"]) && !chatAllowed("vip", ["subscriber"]) && chatAllowed("mods", ["broadcaster"]) && !chatAllowed("mods", ["vip"]), "vip/mods");
+});
+
+await test("chat TTS: subscribe, read, cooldown, permissions, no Kick calls", async () => {
+  const { o, call, d } = await freshChannel("server");
+  await call("enable", { enabled: true });
+  await call("settings", { settings: { chatEnabled: true, chatCooldown: 60, gapSeconds: 0 } });
+  check(kick.subscriptions.some((x) => x.event === "chat.message.sent") && d().chatSubscribed, "subscribed to chat events");
+  const ws = o.state.addSocket("overlay");
+  const msg = (id, userId, content, badges = []) => call("chat", { id, userId, username: "u" + userId, content, badges, at: Date.now() });
+  await msg("m1", 5, "!tts אחי איזה משחק");
+  check(ws.last("play")?.id === "chat-m1" && ws.last("play").text === "אחי איזה משחק", "chat message read aloud");
+  await o.obj.webSocketMessage(ws, JSON.stringify({ type: "done", id: "chat-m1" }));
+  check(!kick.accepted.includes("chat-m1") && !kick.calls.some((c) => c.url.includes("redemptions/") && c.body.includes("chat-")), "no accept/reject for chat");
+  await msg("m2", 5, "!tts שוב אני");
+  check(!d().items.some((i) => i.id === "chat-m2"), "cooldown per viewer");
+  await msg("m3", 6, "!tts מוד בלי השהיה", ["moderator"]);
+  await msg("m4", 6, "!tts מוד שוב", ["moderator"]);
+  check(d().items.some((i) => i.id === "chat-m4"), "mods skip cooldown");
+  await msg("m5", 7, "סתם הודעה בצ'אט");
+  await msg("m6", 8, "!tts בן זונה");
+  check(!d().items.some((i) => i.id === "chat-m5" || i.id === "chat-m6"), "non-commands and banned words ignored");
+  await call("settings", { settings: { chatWho: "subs" } });
+  await msg("m7", 9, "!tts אני לא סאב");
+  await msg("m8", 10, "!tts אני סאב", ["subscriber"]);
+  check(!d().items.some((i) => i.id === "chat-m7") && d().items.some((i) => i.id === "chat-m8"), "subs-only setting");
+  check((await call("state")).json.items.some((i) => i.chat), "view marks chat items");
+  await call("settings", { settings: { chatEnabled: false } });
+  check(!kick.subscriptions.some((x) => x.event === "chat.message.sent"), "unsubscribed when turned off");
+  await msg("m9", 11, "!tts כבוי");
+  check(!d().items.some((i) => i.id === "chat-m9"), "ignored when chat TTS off");
 });
 
 await test("token refresh and expired login", async () => {

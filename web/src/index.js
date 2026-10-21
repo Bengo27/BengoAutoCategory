@@ -6,7 +6,7 @@
 //   /o/<id>-<key>     הווידג'ט ל-OBS (קישור אישי, בלי התחברות)
 //   /kick/webhook     התראות מקיק על קניית פרסים
 import { ChannelDO } from "./channel.js";
-import { KICK, SCOPES, exchangeCode, getMe, verifyWebhook, REDEMPTION_EVENT } from "./kick.js";
+import { KICK, SCOPES, exchangeCode, getMe, verifyWebhook, REDEMPTION_EVENT, CHAT_EVENT, badgeTypes } from "./kick.js";
 import { signSession, verifySession, pkce, randomId, cookies } from "./crypto.js";
 import { landingPage, dashboardPage, overlayPage } from "./pages.js";
 
@@ -169,9 +169,25 @@ async function webhook(request, env) {
   const raw = await request.text();
   if (raw.length > 64_000) return json({ error: "too_large" }, 413);
   if (!(await verifyWebhook(request.headers, raw))) return json({ error: "bad_signature" }, 401);
-  if (request.headers.get("Kick-Event-Type") !== REDEMPTION_EVENT) return json({ ok: true });
+  const type = request.headers.get("Kick-Event-Type");
+  if (type !== REDEMPTION_EVENT && type !== CHAT_EVENT) return json({ ok: true });
   let p;
   try { p = JSON.parse(raw); } catch { return json({ error: "invalid_json" }, 400); }
+  if (type === CHAT_EVENT) {
+    // רוב הצ'אט לא רלוונטי: ממשיכים רק הודעות שמתחילות בסימן (תו שאינו אות/ספרה)
+    const content = String(p?.content || "").trim();
+    const broadcaster = Number(p?.broadcaster?.user_id);
+    if (!broadcaster || !content || /^[\p{L}\p{N}]/u.test(content)) return json({ ok: true });
+    await call(env, broadcaster, "chat", {
+      method: "POST",
+      body: {
+        id: String(p.message_id || request.headers.get("Kick-Event-Message-Id") || ""),
+        userId: Number(p.sender?.user_id) || 0, username: p.sender?.username || "",
+        content: content.slice(0, 600), badges: badgeTypes(p.sender), at: Date.parse(p.created_at) || Date.now(),
+      },
+    });
+    return json({ ok: true });
+  }
   const broadcaster = Number(p?.broadcaster?.user_id);
   if (!broadcaster || !p?.id) return json({ ok: true });
   await call(env, broadcaster, "webhook", {

@@ -2,9 +2,12 @@
 // והחיבורים הפתוחים (הווידג'ט ב-OBS + לוח הבקרה באתר).
 import {
   KickError, createReward, updateReward, pendingRedemptions, resolveRedemptions, userNames,
-  subscribeRedemptions, refreshTokens, KICK,
+  subscribeRedemptions, subscribeEvents, unsubscribeEvent, refreshTokens, KICK, REDEMPTION_EVENT, CHAT_EVENT,
 } from "./kick.js";
-import { defaultSettings, sanitizeSettings, checkMessage, applyTemplate, synthesize } from "./tts.js";
+import { defaultSettings, sanitizeSettings, checkMessage, applyTemplate, synthesize, chatCommandText, chatAllowed } from "./tts.js";
+
+/** פריט שקשור לקנייה בקיק (ולא בדיקה או הודעת צ'אט) – רק לו מאשרים/מחזירים נקודות. */
+const isRedemption = (item) => !item.test && !item.chat;
 import { seal, unseal, randomId } from "./crypto.js";
 
 const KEEP_FINISHED = 40;
@@ -51,6 +54,7 @@ export class ChannelDO {
     try {
       if (op === "init") return json(await this.init(body));
       if (op === "webhook") { await this.onWebhook(body); return json({ ok: true }); }
+      if (op === "chat") { await this.onChat(body); return json({ ok: true }); }
 
       if (!this.data) return json({ error: "not_found" }, 404);
 
@@ -171,6 +175,21 @@ export class ChannelDO {
     const rewardChanged = before.rewardTitle !== after.rewardTitle || before.rewardCost !== after.rewardCost ||
       before.rewardDescription !== after.rewardDescription;
     if (rewardChanged && this.data.rewardId && this.data.auth) await this.ensureReward();
+    if (before.chatEnabled !== after.chatEnabled && this.data.auth) await this.syncChatSubscription();
+  }
+
+  /** הקראה מהצ'אט צריכה התראות על הודעות צ'אט. כשמכבים – מבטלים, כדי לחסוך בקשות לשרת. */
+  async syncChatSubscription() {
+    const on = this.data.settings.chatEnabled;
+    try {
+      if (on) await this.kick((t) => subscribeEvents(t, [CHAT_EVENT]));
+      else await this.kick((t) => unsubscribeEvent(t, CHAT_EVENT));
+      this.data.chatSubscribed = on;
+    } catch (e) {
+      this.data.chatSubscribed = false;
+      if (on) this.data.error = "לא ניתן להירשם להודעות הצ'אט בקיק: " + e.message;
+    }
+    await this.save();
   }
 
   async ensureReward() {
@@ -231,6 +250,38 @@ export class ChannelDO {
   }
 
   // ───────────────────────── בקשות מצופים ─────────────────────────
+
+  /** הודעה בצ'אט שמתחילה בסימן ההקראה. */
+  async onChat(m) {
+    const d = this.data;
+    if (!d || !m?.id) return;
+    const s = d.settings;
+    if (!s.enabled || !s.chatEnabled) return;
+    const raw = chatCommandText(m.content, s.chatPrefix);
+    if (!raw) return;
+    const id = "chat-" + m.id;
+    if (d.seen.includes(id)) return;
+    if (!chatAllowed(s.chatWho, m.badges || [])) return;
+    const isMod = (m.badges || []).some((b) => b === "broadcaster" || b === "moderator");
+    d.chatLast ||= {};
+    const last = d.chatLast[m.userId] || 0;
+    if (!isMod && s.chatCooldown > 0 && this.now() - last < s.chatCooldown * 1000) return;
+    const check = checkMessage(raw, s);
+    if (!check.ok) return; // בצ'אט אין נקודות להחזיר – פשוט לא מקריאים
+    d.seen.push(id);
+    d.seen = d.seen.slice(-300);
+    d.chatLast[m.userId] = this.now();
+    // ניקוי רשומות השהיה ישנות
+    for (const [k, t] of Object.entries(d.chatLast)) if (this.now() - t > 3600_000) delete d.chatLast[k];
+    d.items.push({
+      id, user: m.username || "צופה", userId: m.userId || 0, text: check.text, at: m.at || this.now(),
+      status: s.manualApproval ? "approval" : "waiting", note: null, test: false, chat: true,
+    });
+    this.trim();
+    await this.save();
+    this.broadcast();
+    await this.pump();
+  }
 
   async onWebhook(r) {
     if (!this.data || !r?.id) return;
@@ -298,12 +349,12 @@ export class ChannelDO {
   async reject(item, reason) {
     item.status = "rejected";
     item.note = reason;
-    if (item.test) return;
+    if (!isRedemption(item)) return;
     await this.kick((t) => resolveRedemptions(t, "reject", [item.id])).catch(() => { item.note += " (לא נמסר לקיק)"; });
   }
 
   async accept(item) {
-    if (item.test) return;
+    if (!isRedemption(item)) return;
     await this.kick((t) => resolveRedemptions(t, "accept", [item.id])).catch(() => {});
   }
 
@@ -388,7 +439,7 @@ export class ChannelDO {
       item.status = "failed";
       item.note = e.message;
       d.playing = null;
-      if (!item.test) await this.kick((t) => resolveRedemptions(t, "reject", [item.id])).catch(() => {});
+      if (isRedemption(item)) await this.kick((t) => resolveRedemptions(t, "reject", [item.id])).catch(() => {});
       await this.save();
       this.broadcast();
       return this.pump();
@@ -413,7 +464,7 @@ export class ChannelDO {
       item.status = status;
       if (note) item.note = note;
       if (status === "failed") {
-        if (!item.test) await this.kick((t) => resolveRedemptions(t, "reject", [item.id])).catch(() => {}); // מחזירים נקודות
+        if (isRedemption(item)) await this.kick((t) => resolveRedemptions(t, "reject", [item.id])).catch(() => {}); // מחזירים נקודות
       } else {
         await this.accept(item); // הוקרא או דולג → הנקודות נוצלו
       }
@@ -548,7 +599,8 @@ export class ChannelDO {
       playingId: d.playing?.id || null,
       error: d.error,
       items: [...open.sort((a, b) => (a.status === "playing" ? -1 : b.status === "playing" ? 1 : 0)), ...done]
-        .map(({ id, user, text, at, status, note, test }) => ({ id, user, text, at, status, note, test })),
+        .map(({ id, user, text, at, status, note, test, chat }) => ({ id, user, text, at, status, note, test, chat: !!chat })),
+      chatSubscribed: !!d.chatSubscribed,
     };
   }
 }
