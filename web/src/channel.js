@@ -2,12 +2,14 @@
 // והחיבורים הפתוחים (הווידג'ט ב-OBS + לוח הבקרה באתר).
 import {
   KickError, createReward, updateReward, pendingRedemptions, resolveRedemptions, userNames,
-  subscribeRedemptions, subscribeEvents, unsubscribeEvent, getChannelInfo, refreshTokens, KICK, REDEMPTION_EVENT, CHAT_EVENT,
+  subscribeRedemptions, subscribeEvents, unsubscribeEvent, getChannelInfo, refreshTokens, KICK, REDEMPTION_EVENT, CHAT_EVENT, ALERT_EVENTS,
 } from "./kick.js";
-import { defaultSettings, sanitizeSettings, checkMessage, applyTemplate, synthesize, synthesizeGemini, chatCommandText, chatAllowed } from "./tts.js";
+import { defaultSettings, sanitizeSettings, checkMessage, applyTemplate, synthesize, synthesizeGemini, chatCommandText, chatAllowed, alertText, ALERT_KINDS } from "./tts.js";
 
 /** פריט שקשור לקנייה בקיק (ולא בדיקה או הודעת צ'אט) – רק לו מאשרים/מחזירים נקודות. */
-const isRedemption = (item) => !item.test && !item.chat;
+const isRedemption = (item) => !item.test && !item.chat && !item.alert;
+const spokenText = (s, item) => item.spoken || applyTemplate(s.template, item.user, item.text);
+const ALERT_FLAG = { kicks: "alertKicks", follow: "alertFollow", sub: "alertSub", gift: "alertGift" };
 import { seal, unseal, randomId } from "./crypto.js";
 import { npDefaults, sanitizeNp, validClientId, spotifyExchange, spotifyRefresh } from "./nowplaying.js";
 
@@ -18,6 +20,17 @@ const POLL_WITHOUT_WEBHOOK = 5_000;
 
 const json = (data, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });
+
+function sampleAlert(kind) {
+  const samples = {
+    kicks: { kind, user: "דני_גיימר", amount: 100, text: "אחי איזה משחק, תמשיך ככה!" },
+    follow: { kind, user: "צופה_חדש" },
+    sub: { kind, user: "יוסי123", months: 3 },
+    gift: { kind, user: "המלך", count: 5 },
+  };
+  if (!samples[kind]) { const e = new Error("סוג בדיקה לא מוכר"); e.status = 400; throw e; }
+  return { ...samples[kind], id: randomId(8) };
+}
 
 export class ChannelDO {
   constructor(state, env) {
@@ -74,6 +87,7 @@ export class ChannelDO {
     try {
       if (op === "init") return json(await this.init(body));
       if (op === "webhook") { await this.onWebhook(body); if (this.data) await this.save(); return json({ ok: true }); }
+      if (op === "alert") { await this.onAlert(body); return json({ ok: true }); }
       if (op === "chat") { await this.onChat(body); await this.save(); return json({ ok: true }); }
       if (op === "hook-bad") { if (this.data) { this.data.badHookAt = this.now(); await this.save(); this.broadcast(); } return json({ ok: true }); }
 
@@ -97,6 +111,7 @@ export class ChannelDO {
         case "voice-test": return await this.voiceTest(body);
         case "logout": await this.logout(); break;
         case "clear": await this.clearQueue(); break;
+        case "alert-test": await this.onAlert(sampleAlert(String(body.kind || "")), true); break;
         case "chat-resync": this.data.chatSubscribed = false; await this.syncChatSubscription(); if (!this.data.chatSubscribed) throw new Error(this.data.error || "ההרשמה לצ'אט נכשלה"); this.data.error = null; break;
         case "np-settings": this.np().settings = sanitizeNp(body.settings, this.np().settings); await this.save(); this.sendNpConfig(); break;
         case "spotify-client": await this.setSpotifyClient(body.clientId); break;
@@ -132,6 +147,9 @@ export class ChannelDO {
     await this.save();
     // אם כבר יש פרס – מוודאים שההתראות פעילות
     if (!fresh && this.data.rewardId && !this.data.webhook) await this.trySubscribe();
+    // אחרי התחברות מחדש (למשל בשביל הרשאת Kicks) – מרעננים את ההרשמות לאירועים
+    const st = this.data.settings;
+    if (!fresh && (st.chatEnabled || st.alertKicks || st.alertFollow || st.alertSub || st.alertGift)) await this.syncChatSubscription().catch(() => {});
     this.broadcast();
     return { ok: true };
   }
@@ -202,21 +220,61 @@ export class ChannelDO {
     const rewardChanged = before.rewardTitle !== after.rewardTitle || before.rewardCost !== after.rewardCost ||
       before.rewardDescription !== after.rewardDescription;
     if (rewardChanged && this.data.rewardId && this.data.auth) await this.ensureReward();
-    if (before.chatEnabled !== after.chatEnabled && this.data.auth) await this.syncChatSubscription();
+    const eventsChanged = before.chatEnabled !== after.chatEnabled || ALERT_KINDS.some((k) => before[ALERT_FLAG[k]] !== after[ALERT_FLAG[k]]);
+    if (eventsChanged && this.data.auth) await this.syncChatSubscription();
   }
 
   /** הקראה מהצ'אט צריכה התראות על הודעות צ'אט. כשמכבים – מבטלים, כדי לחסוך בקשות לשרת. */
   async syncChatSubscription() {
-    const on = this.data.settings.chatEnabled;
-    try {
-      if (on) await this.kick((t) => subscribeEvents(t, [CHAT_EVENT]));
-      else await this.kick((t) => unsubscribeEvent(t, CHAT_EVENT));
-      this.data.chatSubscribed = on;
-    } catch (e) {
-      this.data.chatSubscribed = false;
-      if (on) this.data.error = "לא ניתן להירשם להודעות הצ'אט בקיק: " + e.message;
+    // צ'אט + אירועים להקראה: נרשמים למה שמופעל, ומבטלים את השאר (חוסך בקשות לשרת)
+    const st = this.data.settings;
+    const want = { chat: !!st.chatEnabled };
+    for (const k of ALERT_KINDS) want[k] = !!st[ALERT_FLAG[k]];
+    const events = { chat: [CHAT_EVENT], ...ALERT_EVENTS };
+    const subs = {};
+    const off = Object.keys(events).filter((k) => !want[k]).flatMap((k) => events[k]);
+    if (off.length) await this.kick((t) => unsubscribeEvent(t, off)).catch(() => {});
+    for (const k of Object.keys(events).filter((k) => want[k])) {
+      if (k === "kicks" && !this.hasScope("kicks:read")) { subs[k] = "צריך להתחבר מחדש לקיק (הרשאת Kicks)"; continue; }
+      try { await this.kick((t) => subscribeEvents(t, events[k])); subs[k] = true; }
+      catch (e) { subs[k] = e.message || "ההרשמה נכשלה"; }
     }
+    this.data.alertSubs = subs;
+    this.data.chatSubscribed = subs.chat === true;
+    if (want.chat && subs.chat !== true) this.data.error = "לא ניתן להירשם להודעות הצ'אט בקיק: " + subs.chat;
     await this.save();
+  }
+
+  hasScope(name) { return String(this.data.auth?.scope || "").split(/\s+/).includes(name); }
+
+  /** אירוע מקיק להקראה (Kicks / עוקב / סאב / סאבים במתנה). test = מכפתור הבדיקה. */
+  async onAlert(ev, test = false) {
+    const d = this.data;
+    if (!d || !ev?.kind || !ALERT_KINDS.includes(ev.kind)) return;
+    if (!test) await this.markHook();
+    const s = d.settings;
+    const note = async (reason) => { d.alertDebug = { at: this.now(), kind: ev.kind, user: ev.user || "", reason }; await this.save(); this.broadcast(); };
+    if (!test) {
+      if (!s.enabled) return note("ההקראה כבויה (המתג הראשי בסקירה)");
+      if (!s[ALERT_FLAG[ev.kind]]) return note("ההקראה לסוג הזה כבויה");
+      if (ev.kind === "kicks" && Number(ev.amount || 0) < s.alertKicksMin) return note("מתחת לסכום המינימלי (" + s.alertKicksMin + ")");
+    }
+    const id = (test ? "test-alert-" : "alert-") + (ev.id || randomId(10));
+    if (d.seen.includes(id)) return;
+    let msg = String(ev.text || "");
+    if (msg) { const c = checkMessage(msg, s); msg = c.ok ? c.text : ""; } // הודעה חסומה – מקריאים בלי ההודעה
+    const spoken = alertText(ev.kind, s, { ...ev, text: msg });
+    d.seen.push(id); d.seen = d.seen.slice(-300);
+    d.items.push({ id, user: ev.user || "צופה", userId: ev.userId || 0, text: spoken, spoken, at: this.now(),
+      status: "waiting", note: null, test, alert: ev.kind });
+    d.alertDebug = { at: this.now(), kind: ev.kind, user: ev.user || "", reason: test ? "בדיקה – נכנס לתור ✓" : "נכנס לתור ✓" };
+    if (test && !this.canPlay()) {
+      d.error = this.edgeMode() ? "אף לשונית לא מקריאה כרגע – לחץ \"הפעל הקראה מהלשונית הזו\" (ב-Edge)." : "הווידג'ט לא פתוח ב-OBS – הבדיקה תושמע כשהוא ייפתח.";
+    }
+    this.trim();
+    await this.save();
+    this.broadcast();
+    await this.pump();
   }
 
   async ensureReward() {
@@ -437,7 +495,7 @@ export class ChannelDO {
     if (!d.stats || d.stats.day !== day) d.stats = { day, total: 0, chat: 0, reward: 0 };
     if (item.test) return;
     d.stats.total++;
-    if (item.chat) d.stats.chat++; else d.stats.reward++;
+    if (item.chat) d.stats.chat++; else if (item.alert) d.stats.alert = (d.stats.alert || 0) + 1; else d.stats.reward++;
   }
 
   async enqueueTest(text) {
@@ -494,7 +552,7 @@ export class ChannelDO {
     let audio;
     try {
       const s = d.settings;
-      audio = await this.synth(applyTemplate(s.template, item.user, item.text));
+      audio = await this.synth(spokenText(s, item));
     } catch (e) {
       // אם יש לשונית Edge פתוחה – מקריאים ממנה במקום לוותר
       if (this.sockets("speaker").length) {
@@ -525,7 +583,7 @@ export class ChannelDO {
   async speakViaTab(item) {
     const d = this.data;
     const s0 = d.settings;
-    const spoken = applyTemplate(s0.template, item.user, item.text);
+    const spoken = spokenText(s0, item);
     d.playing = { id: item.id, deadline: this.now() + Math.ceil(spoken.length / 10) * 1000 + 15_000 };
     await this.save();
     this.broadcast();
@@ -777,13 +835,14 @@ export class ChannelDO {
       playingId: d.playing?.id || null,
       error: d.error,
       items: [...open.sort((a, b) => (a.status === "playing" ? -1 : b.status === "playing" ? 1 : 0)), ...done]
-        .map(({ id, user, text, at, status, note, test, chat }) => ({ id, user, text, at, status, note, test, chat: !!chat })),
+        .map(({ id, user, text, at, status, note, test, chat, alert }) => ({ id, user, text, at, status, note, test, chat: !!chat, alert: alert || null })),
       chatSubscribed: !!d.chatSubscribed,
       lastHookAt: d.lastHookAt || 0, badHookAt: d.badHookAt || 0, chatDebug: d.chatDebug || null,
+      alertSubs: d.alertSubs || {}, alertDebug: d.alertDebug || null, kicksScope: !!d.auth && this.hasScope("kicks:read"),
       np: (() => { const n = this.np(); return { settings: n.settings, clientId: n.clientId, connected: !!n.auth, error: n.error,
         widgets: this.sockets("np").length, path: `/np/${d.user?.id}-${d.overlayKey}` }; })(),
       channel: d.channel || null,
-      stats: d.stats && d.stats.day === new Date(this.now() + 3 * 3600_000).toISOString().slice(0, 10) ? d.stats : { total: 0, chat: 0, reward: 0 },
+      stats: d.stats && d.stats.day === new Date(this.now() + 3 * 3600_000).toISOString().slice(0, 10) ? d.stats : { total: 0, chat: 0, reward: 0, alert: 0 },
     };
   }
 }

@@ -464,6 +464,44 @@ await test("worker routes", async () => {
   check(page.includes("/ws") && page.includes('dir="rtl"'), "overlay page");
   check((await W("/kick/webhook", { method: "POST", body: "{}" })).status === 401, "unsigned webhook rejected");
   check((await W("/nope")).status === 404, "404");
+  check(loc.searchParams.get("scope").includes("kicks:read"), "login asks for kicks:read");
+});
+
+await test("alerts (kicks / follow / sub / gift)", async () => {
+  const { alertText, defaultSettings: ds } = await import("../src/tts.js");
+  const S = ds();
+  check(alertText("kicks", S, { user: "דני", amount: 100, text: "יאללה" }) === "דני שלח 100 קיקס: יאללה", "kicks text");
+  check(alertText("kicks", S, { user: "דני", amount: 50, text: "" }) === "דני שלח 50 קיקס!", "kicks without message");
+  check(alertText("gift", S, { user: "המלך", count: 5 }).startsWith("המלך הביא 5 סאבים"), "gift text");
+  const { o, call, d } = await freshChannel();
+  const ws = o.state.addSocket("overlay");
+  await call("enable", { enabled: true });
+  // כבוי → לא מוקרא, אבל רואים למה
+  await call("alert", { kind: "follow", id: "f1", user: "newguy" });
+  check(!d().items.some((i) => i.alert) && /כבויה/.test(d().alertDebug.reason), "alert off → explained, not read");
+  await call("settings", { settings: { alertFollow: true, alertKicks: true, alertKicksMin: 100 } });
+  check(kick.subscriptions.some((x) => x.event === "channel.followed") && d().alertSubs.follow === true, "subscribed to follows");
+  check(typeof d().alertSubs.kicks === "string" && /מחדש/.test(d().alertSubs.kicks), "kicks needs re-login (no kicks:read)");
+  await call("alert", { kind: "follow", id: "f2", user: "newguy" });
+  const it = d().items.find((i) => i.id === "alert-f2");
+  check(it && it.spoken === "תודה על העוקב, newguy!", "follow queued with template");
+  await o.obj.tick();
+  const play = ws.last("play");
+  const az = kick.calls.filter((c) => c.url.includes("tts.speech")).pop();
+  check(play?.id === "alert-f2" && az?.body.includes("תודה על העוקב, newguy!") && !az.body.includes("אומר:"), "alert spoken as-is (not with chat template)");
+  await call("alert", { kind: "follow", id: "f2", user: "newguy" });
+  check(d().items.filter((i) => i.id === "alert-f2").length === 1, "duplicate alert ignored");
+  await call("alert", { kind: "kicks", id: "k1", user: "small", amount: 10, text: "hi" });
+  check(!d().items.some((i) => i.id === "alert-k1") && /מינימלי/.test(d().alertDebug.reason), "kicks under minimum skipped");
+  await call("alert", { kind: "kicks", id: "k2", user: "big", amount: 500, text: "FUCK this" });
+  check(d().items.find((i) => i.id === "alert-k2")?.spoken === "big שלח 500 קיקס!", "blocked kicks message read without the message");
+  await o.obj.webSocketMessage(ws, JSON.stringify({ type: "done", id: "alert-f2" }));
+  check(!kick.accepted.includes("alert-f2") && !kick.rejected.includes("alert-f2"), "alerts never touch reward redemptions");
+  const r = await call("alert-test", { kind: "gift" });
+  check(r.status === 200 && d().items.some((i) => i.test && i.alert === "gift" && /5 סאבים/.test(i.spoken)), "test button for gifts");
+  check((await call("alert-test", { kind: "nope" })).status === 400, "unknown test kind rejected");
+  await call("settings", { settings: { alertFollow: false } });
+  check(!kick.subscriptions.some((x) => x.event === "channel.followed"), "unsubscribed when turned off");
 });
 
 await test("now playing (spotify)", async () => {

@@ -116,7 +116,7 @@ const BODY = `
     <h1>הקראה (TTS)</h1><p class="sub">צופים שולחים הודעה – והיא מוקראת בשידור. דרך פרס בנקודות, או מהצ'אט עם סימן.</p>
     <div class="tabs" id="ttsTabs">
       <button data-tab="queue" class="sel">תור</button><button data-tab="voice">קול</button>
-      <button data-tab="chat">💬 מהצ'אט</button><button data-tab="reward">🎁 פרס בנקודות</button><button data-tab="filter">🛡️ סינון</button>
+      <button data-tab="chat">💬 מהצ'אט</button><button data-tab="alerts">🔔 אירועים</button><button data-tab="reward">🎁 פרס בנקודות</button><button data-tab="filter">🛡️ סינון</button>
     </div>
 
     <div class="tab sel" id="tab-queue"><div class="card">
@@ -181,6 +181,27 @@ const BODY = `
       <p class="muted" id="cdHint" style="margin:10px 0"></p>
       <div class="actions"><button id="chatResync">🔄 הירשם מחדש להודעות צ'אט</button></div>
     </div></div>
+
+    <div class="tab" id="tab-alerts">
+      <div class="card"><h2>🔔 הקראת אירועים</h2>
+        <p class="muted" style="margin:0">ההתראה על המסך נשארת ב-Botrix – כאן רק הקול. ההקראות נכנסות לאותו תור של הפרסים והצ'אט, בלי התנגשויות.
+        כפתור <b>🧪 בדיקה</b> שולח אירוע מדומה ושומעים אותו מיד (גם כשהמתג כבוי).</p>
+        <p class="notice hidden" id="kicksRelogin">בשביל Kicks קיק צריך הרשאה נוספת: <a href="#settings">התנתק</a> והתחבר שוב לאתר פעם אחת.</p>
+        <p class="muted" id="alertLast" style="margin:10px 0 0"></p>
+      </div>
+      <div class="card"><div class="row" style="padding-top:0"><div class="lbl"><b>💚 Kicks</b> <span class="dot" id="as-kicks"></span><small id="asV-kicks">כשצופה שולח Kicks – מקריאים את ההודעה שלו.</small></div>
+        <div class="actions"><button id="at-kicks">🧪 בדיקה</button><label class="switch"><input type="checkbox" id="alertKicks"><span></span></label></div></div>
+        <div class="grid2"><div class="field"><label>מינימום Kicks להקראה</label><input type="number" class="num" id="alertKicksMin" min="1"></div><div class="field"><label>מה יוקרא</label><input type="text" id="alertKicksTemplate" maxlength="120"><small>&#123;user&#125; &#123;amount&#125; &#123;text&#125;</small></div></div></div>
+      <div class="card"><div class="row" style="padding-top:0"><div class="lbl"><b>➕ עוקב חדש</b> <span class="dot" id="as-follow"></span><small id="asV-follow">תודה בקול לכל עוקב חדש. בשידור עמוס זה יכול להיות הרבה.</small></div>
+        <div class="actions"><button id="at-follow">🧪 בדיקה</button><label class="switch"><input type="checkbox" id="alertFollow"><span></span></label></div></div>
+        <div class="grid2"><div class="field"><label>מה יוקרא</label><input type="text" id="alertFollowTemplate" maxlength="120"><small>&#123;user&#125;</small></div></div></div>
+      <div class="card"><div class="row" style="padding-top:0"><div class="lbl"><b>⭐ סאב (חדש וחידוש)</b> <span class="dot" id="as-sub"></span><small id="asV-sub"></small></div>
+        <div class="actions"><button id="at-sub">🧪 בדיקה</button><label class="switch"><input type="checkbox" id="alertSub"><span></span></label></div></div>
+        <div class="grid2"><div class="field"><label>מה יוקרא</label><input type="text" id="alertSubTemplate" maxlength="120"><small>&#123;user&#125; &#123;months&#125;</small></div></div></div>
+      <div class="card"><div class="row" style="padding-top:0"><div class="lbl"><b>🎁 סאבים במתנה</b> <span class="dot" id="as-gift"></span><small id="asV-gift"></small></div>
+        <div class="actions"><button id="at-gift">🧪 בדיקה</button><label class="switch"><input type="checkbox" id="alertGift"><span></span></label></div></div>
+        <div class="grid2"><div class="field"><label>מה יוקרא</label><input type="text" id="alertGiftTemplate" maxlength="120"><small>&#123;user&#125; &#123;count&#125;</small></div></div></div>
+    </div>
 
     <div class="tab" id="tab-reward"><div class="card"><h2>פרס בנקודות הערוץ</h2>
       <div class="grid2">
@@ -330,13 +351,18 @@ $("rate").oninput=$("volume").oninput=showRange;
 $("chatPrefix").oninput=()=>{$("chatExample").textContent=$("chatPrefix").value.trim()||"!tts";};
 const ltr=t=>"⁦"+t+"⁩"; // שומר על "!tts" בכיוון הנכון בתוך טקסט עברי
 
-const FIELDS=["rewardTitle","rewardCost","rewardDescription","template","maxChars","gapSeconds","maxAgeMinutes","rate","volume","chatPrefix","chatCooldown"];
+const FIELDS=["rewardTitle","rewardCost","rewardDescription","template","maxChars","gapSeconds","maxAgeMinutes","rate","volume","chatPrefix","chatCooldown",
+ "alertKicksMin","alertKicksTemplate","alertFollowTemplate","alertSubTemplate","alertGiftTemplate"];
+const ALERTS=[["kicks","Kicks"],["follow","Follow"],["sub","Sub"],["gift","Gift"]];
 function loadForm(s){for(const k of FIELDS)$(k).value=s[k];$("manualApproval").checked=s.manualApproval;$("blockLinks").checked=s.blockLinks;
- $("chatEnabled").checked=!!s.chatEnabled;$("banned").value=(s.banned||[]).join("\n");setVoice(s.voice);setGVoice(s.geminiVoice||"Kore");setWho(s.chatWho||"all");setMode(s.playback||"edge");showRange();$("chatPrefix").oninput();}
+ $("chatEnabled").checked=!!s.chatEnabled;for(const [,K] of ALERTS)$("alert"+K).checked=!!s["alert"+K];$("banned").value=(s.banned||[]).join("\n");setVoice(s.voice);setGVoice(s.geminiVoice||"Kore");setWho(s.chatWho||"all");setMode(s.playback||"edge");showRange();$("chatPrefix").oninput();}
 function collect(){return{rewardTitle:$("rewardTitle").value,rewardCost:+$("rewardCost").value,rewardDescription:$("rewardDescription").value,template:$("template").value,
  maxChars:+$("maxChars").value,gapSeconds:+$("gapSeconds").value,maxAgeMinutes:+$("maxAgeMinutes").value,rate:+$("rate").value,volume:+$("volume").value,
  manualApproval:$("manualApproval").checked,blockLinks:$("blockLinks").checked,voice,geminiVoice:gvoice,playback:mode,chatEnabled:$("chatEnabled").checked,
- chatPrefix:$("chatPrefix").value.trim(),chatCooldown:+$("chatCooldown").value,chatWho,banned:$("banned").value.split(/\n|,/).map(x=>x.trim()).filter(Boolean)};}
+ chatPrefix:$("chatPrefix").value.trim(),chatCooldown:+$("chatCooldown").value,
+ alertKicksMin:+$("alertKicksMin").value,alertKicksTemplate:$("alertKicksTemplate").value,alertFollowTemplate:$("alertFollowTemplate").value,
+ alertSubTemplate:$("alertSubTemplate").value,alertGiftTemplate:$("alertGiftTemplate").value,
+ alertKicks:$("alertKicks").checked,alertFollow:$("alertFollow").checked,alertSub:$("alertSub").checked,alertGift:$("alertGift").checked,chatWho,banned:$("banned").value.split(/\n|,/).map(x=>x.trim()).filter(Boolean)};}
 
 function svc(id,cls,text){$(id).className="dot "+cls;$(id+"V").textContent=text;}
 
@@ -374,7 +400,7 @@ function render(s){state=s;const st=s.settings;if(!formLoaded){loadForm(st);form
  // דפדפן בלי קולות עבריים (Chrome וכו'): להציע את Gemini במקום
  const noVoices=!heVoices().length;$("spkBannerBtn").classList.toggle("hidden",noVoices);$("spkBannerGemini").classList.toggle("hidden",!noVoices||!s.geminiTts);
  $("spkBannerText").textContent=noVoices?(s.geminiTts?"בדפדפן הזה אין קולות עבריים. פתח את האתר ב-Edge כדי להקריא מכאן, או עבור ל-Gemini (הקול יוצא ישר מ-OBS).":"בדפדפן הזה אין קולות עבריים – פתח את האתר ב-Microsoft Edge והפעל שם הקראה."):"אף לשונית לא מקריאה כרגע – ההקראות מחכות.";
- speakerStatus();updateServerOff();renderNp(s);renderChatDiag(s);
+ speakerStatus();updateServerOff();renderNp(s);renderChatDiag(s);renderAlerts(s);
  // OBS
  $("obsUrl").value=location.origin+s.overlayPath;$("obsDot").className="dot "+(s.overlays?"on":"warn");
  $("obsText").textContent=s.overlays?"פתוח ב-OBS ✓":"לא פתוח ב-OBS כרגע";
@@ -383,7 +409,7 @@ function render(s){state=s;const st=s.settings;if(!formLoaded){loadForm(st);form
  if(!s.items.length){const p=document.createElement("p");p.className="muted";p.style.margin="0";p.textContent="עוד אין הודעות. ברגע שצופה יקנה את הפרס או יכתוב בצ'אט – ההודעה תופיע כאן.";q.append(p);}
  for(const i of s.items){const isOpen=["playing","waiting","approval"].includes(i.status);const row=document.createElement("div");row.className="q"+(isOpen?"":" old");
   const body=document.createElement("div");body.className="body";const top=document.createElement("div");top.className="top";
-  const who=document.createElement("span");who.className="who";who.textContent=(i.chat?"💬 ":i.test?"🧪 ":"🎁 ")+i.user;
+  const who=document.createElement("span");who.className="who";who.textContent=(i.alert?"🔔 ":i.chat?"💬 ":i.test?"🧪 ":"🎁 ")+i.user;
   const meta=document.createElement("span");meta.className="meta";
   meta.textContent=new Date(i.at).toLocaleTimeString("he-IL",{hour:"2-digit",minute:"2-digit"})+" · "+(STATUS[i.status]||i.status)+(i.note?" · "+i.note:"");
   top.append(who,meta);const tx=document.createElement("div");tx.className="text";tx.textContent=i.text;body.append(top,tx);row.append(body);
@@ -452,6 +478,19 @@ function renderChatDiag(s){const st=s.settings,ago=t=>{const m=Math.round((Date.
  $("cdHint").textContent=!s.lastHookAt?(s.badHookAt?"קיק שולח, אבל החתימה לא עוברת בדיקה – תגיד לי, זה צד שלי.":"קיק עוד לא שלח לאתר אף התראה. בדוק בהגדרות האפליקציה בקיק (Settings ← Developer) ש-Enable Webhooks מופעל וה-Webhook URL הוא "+location.origin+"/kick/webhook – ושמרת."):
   c?"":"מגיעות התראות מקיק. כתוב בצ'אט "+ltr(st.chatPrefix)+" בדיקה ותראה כאן מה קרה.";}
 act("chatResync",async()=>{await post("chat-resync");toast("נרשמת מחדש להודעות צ'אט ✓");});
+
+// ── אירועים ──
+const KIND_NAME={kicks:"Kicks",follow:"עוקב",sub:"סאב",gift:"סאבים במתנה"};
+function renderAlerts(s){const st=s.settings;
+ for(const [k,K] of ALERTS){const on=!!st["alert"+K],sub=(s.alertSubs||{})[k];
+  if(!on){$("as-"+k).className="dot";continue;}
+  $("as-"+k).className="dot "+(sub===true?"on":"warn");$("asV-"+k).textContent=sub===true?"פעיל ✓":sub?String(sub):"מתחבר…";}
+ $("kicksRelogin").classList.toggle("hidden",!!s.kicksScope);
+ const a=s.alertDebug;$("alertLast").textContent=a?"אחרון: "+(KIND_NAME[a.kind]||a.kind)+" · "+a.user+" ← "+a.reason:"";}
+for(const [k,K] of ALERTS){
+ $("alert"+K).onchange=async e=>{try{await post("settings",{settings:collect()});toast(e.target.checked?"הקראת "+KIND_NAME[k]+" הופעלה":"הקראת "+KIND_NAME[k]+" כובתה");}catch(err){toast(err.message,true);e.target.checked=!e.target.checked;}};
+ act("at-"+k,async()=>{await post("settings",{settings:collect()});await post("alert-test",{kind:k});
+  toast(mode==="edge"?((speakerOn||state?.speakers)?"בדיקה נשלחה – תשמע עכשיו":"נשמר – יוקרא כשתפעיל הקראה מהלשונית"):(state?.overlays?"בדיקה נשלחה ל-OBS":"נשמר – יושמע כשהווידג'ט ייפתח ב-OBS"));});}
 
 // ── Now Playing ──
 let npTheme="classic",npLoaded=false,npTimer=null,npPrevKey="";

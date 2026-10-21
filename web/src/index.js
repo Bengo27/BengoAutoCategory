@@ -6,7 +6,7 @@
 //   /o/<id>-<key>     הווידג'ט ל-OBS (קישור אישי, בלי התחברות)
 //   /kick/webhook     התראות מקיק על קניית פרסים
 import { ChannelDO } from "./channel.js";
-import { KICK, SCOPES, exchangeCode, getMe, verifyWebhook, REDEMPTION_EVENT, CHAT_EVENT, badgeTypes } from "./kick.js";
+import { KICK, SCOPES, exchangeCode, getMe, verifyWebhook, REDEMPTION_EVENT, CHAT_EVENT, ALERT_EVENTS, ALL_ALERT_EVENTS, badgeTypes } from "./kick.js";
 import { signSession, verifySession, pkce, randomId, cookies } from "./crypto.js";
 import { landingPage, overlayPage } from "./pages.js";
 import { dashboardPage } from "./dashboard.js";
@@ -131,7 +131,7 @@ const sameOrigin = (request, url) => request.headers.get("Origin") === url.origi
 // ───────────────────────── לוח הבקרה ─────────────────────────
 
 const POST_OPS = new Set(["settings", "enable", "reward", "skip", "pause", "approve", "reject", "test", "rotate", "voice-test", "clear",
-  "np-settings", "spotify-client", "spotify-disconnect", "chat-resync"]);
+  "np-settings", "spotify-client", "spotify-disconnect", "chat-resync", "alert-test"]);
 
 async function api(request, env, url, uid) {
   const op = url.pathname.slice("/api/".length);
@@ -221,9 +221,22 @@ async function webhook(request, env) {
     return json({ error: "bad_signature" }, 401);
   }
   const type = request.headers.get("Kick-Event-Type");
-  if (type !== REDEMPTION_EVENT && type !== CHAT_EVENT) return json({ ok: true });
+  if (type !== REDEMPTION_EVENT && type !== CHAT_EVENT && !ALL_ALERT_EVENTS.includes(type)) return json({ ok: true });
   let p;
   try { p = JSON.parse(raw); } catch { return json({ error: "invalid_json" }, 400); }
+  if (ALL_ALERT_EVENTS.includes(type)) {
+    const broadcaster = Number(p?.broadcaster?.user_id);
+    if (!broadcaster) return json({ ok: true });
+    const kind = Object.keys(ALERT_EVENTS).find((k) => ALERT_EVENTS[k].includes(type));
+    const who = (u) => (u && !u.is_anonymous && u.username) || "אנונימי";
+    const ev = { kind, id: request.headers.get("Kick-Event-Message-Id") || "" };
+    if (kind === "kicks") Object.assign(ev, { user: who(p.sender), userId: Number(p.sender?.user_id) || 0, amount: Number(p.gift?.amount) || 0, text: String(p.gift?.message || "").slice(0, 300) });
+    if (kind === "follow") Object.assign(ev, { user: who(p.follower), userId: Number(p.follower?.user_id) || 0 });
+    if (kind === "sub") Object.assign(ev, { user: who(p.subscriber), userId: Number(p.subscriber?.user_id) || 0, months: Number(p.duration) || 1 });
+    if (kind === "gift") Object.assign(ev, { user: who(p.gifter), userId: Number(p.gifter?.user_id) || 0, count: Array.isArray(p.giftees) ? p.giftees.length : 1 });
+    await call(env, broadcaster, "alert", { method: "POST", body: ev });
+    return json({ ok: true });
+  }
   if (type === CHAT_EVENT) {
     // רוב הצ'אט לא רלוונטי: ממשיכים רק הודעות שמתחילות בסימן (תו שאינו אות/ספרה)
     const content = String(p?.content || "").trim();

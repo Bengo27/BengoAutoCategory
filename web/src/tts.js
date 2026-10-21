@@ -44,7 +44,31 @@ export function defaultSettings() {
     chatPrefix: "!tts",
     chatWho: "all", // all | subs | vip | mods
     chatCooldown: 60,
+    // הקראת אירועים (Kicks / עוקב / סאב / סאבים במתנה) – ההתראה עצמה נשארת ב-Botrix, אצלנו רק הקול
+    alertKicks: false,
+    alertKicksMin: 1,
+    alertKicksTemplate: "{user} שלח {amount} קיקס: {text}",
+    alertFollow: false,
+    alertFollowTemplate: "תודה על העוקב, {user}!",
+    alertSub: false,
+    alertSubTemplate: "{user} עשה סאב! תודה!",
+    alertGift: false,
+    alertGiftTemplate: "{user} הביא {count} סאבים במתנה! תודה!",
   };
+}
+
+export const ALERT_KINDS = ["kicks", "follow", "sub", "gift"];
+const ALERT_KEY = { kicks: "Kicks", follow: "Follow", sub: "Sub", gift: "Gift" };
+
+/** בונה את הטקסט שיוקרא לאירוע. {user} {amount} {text} {months} {count} */
+export function alertText(kind, s, ev) {
+  const tpl = s["alert" + ALERT_KEY[kind] + "Template"] || defaultSettings()["alert" + ALERT_KEY[kind] + "Template"];
+  const msg = (ev.text || "").trim();
+  let t = tpl;
+  // Kicks בלי הודעה: מורידים את החלק של ההודעה (": {text}")
+  if (!msg) t = t.replace(/\s*[:\-–,]?\s*\{text\}/g, "!").replace(/!+\s*$/, "!");
+  const vars = { user: ev.user || "צופה", amount: String(ev.amount ?? ""), text: msg, months: String(ev.months ?? ""), count: String(ev.count ?? "") };
+  return t.replace(/\{(user|amount|text|months|count)\}/g, (_, k) => vars[k]).replace(/\s+/g, " ").trim().slice(0, 500);
 }
 
 const clamp = (n, lo, hi, d) => (Number.isFinite(Number(n)) ? Math.min(hi, Math.max(lo, Math.round(Number(n)))) : d);
@@ -73,6 +97,15 @@ export function sanitizeSettings(input, old = defaultSettings()) {
   if ("chatPrefix" in i) s.chatPrefix = validPrefix(i.chatPrefix) ? i.chatPrefix.trim() : (validPrefix(s.chatPrefix) ? s.chatPrefix : d.chatPrefix);
   if ("chatWho" in i && ["all", "subs", "vip", "mods"].includes(i.chatWho)) s.chatWho = i.chatWho;
   if ("chatCooldown" in i) s.chatCooldown = clamp(i.chatCooldown, 0, 3600, s.chatCooldown);
+  for (const k of ALERT_KINDS) {
+    const K = ALERT_KEY[k];
+    if (("alert" + K) in i) s["alert" + K] = !!i["alert" + K];
+    if (("alert" + K + "Template") in i) {
+      const v = typeof i["alert" + K + "Template"] === "string" ? i["alert" + K + "Template"].trim().slice(0, 120) : "";
+      s["alert" + K + "Template"] = v.includes("{user}") || v.includes("{text}") ? v : d["alert" + K + "Template"];
+    }
+  }
+  if ("alertKicksMin" in i) s.alertKicksMin = clamp(i.alertKicksMin, 1, 1_000_000, s.alertKicksMin);
   if ("banned" in i && Array.isArray(i.banned)) {
     s.banned = [...new Set(i.banned.filter((w) => typeof w === "string").map((w) => w.trim()).filter(Boolean))].slice(0, 500);
   }

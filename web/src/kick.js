@@ -6,7 +6,15 @@ export const KICK = {
   api: "https://api.kick.com/public/v1",
 };
 
-export const SCOPES = "user:read channel:read channel:rewards:read channel:rewards:write events:subscribe";
+export const SCOPES = "user:read channel:read channel:rewards:read channel:rewards:write events:subscribe kicks:read";
+// אירועים להקראה: סוג באתר ← שמות האירועים בקיק
+export const ALERT_EVENTS = {
+  kicks: ["kicks.gifted"],
+  follow: ["channel.followed"],
+  sub: ["channel.subscription.new", "channel.subscription.renewal"],
+  gift: ["channel.subscription.gifts"],
+};
+export const ALL_ALERT_EVENTS = Object.values(ALERT_EVENTS).flat();
 export const REDEMPTION_EVENT = "channel.reward.redemption.updated";
 export const CHAT_EVENT = "chat.message.sent";
 
@@ -164,8 +172,9 @@ export const subscribeRedemptions = (token) => subscribeEvents(token, [REDEMPTIO
 
 /** מבטל הרשמה לאירוע (למשל הצ'אט, כשמכבים הקראה מהצ'אט – חוסך בקשות). */
 export async function unsubscribeEvent(token, name) {
+  const names = Array.isArray(name) ? name : [name];
   const existing = await kickApi(token, "GET", "/events/subscriptions");
-  const ids = (existing?.data || []).filter((s) => s.event === name).map((s) => s.id).filter(Boolean);
+  const ids = (existing?.data || []).filter((s) => names.includes(s.event)).map((s) => s.id).filter(Boolean);
   if (!ids.length) return;
   await kickApi(token, "DELETE", "/events/subscriptions?" + ids.map((id) => "id=" + encodeURIComponent(id)).join("&"));
 }
