@@ -112,7 +112,12 @@ public partial class App : Application
         _services.Start();
 
         var startMinimized = e.Args.Any(a => a.Equals("--minimized", StringComparison.OrdinalIgnoreCase));
-        if (!startMinimized) ShowMainWindow();
+        if (!startMinimized)
+        {
+            // כבר מחובר לקיק → רק החלון הקטן ליד השעון. עוד לא מחובר → לוח הבקרה המלא (צריך להגדיר)
+            if (_services.Kick.IsConnected) Dispatcher.InvokeAsync(() => _flyout?.Toggle(), DispatcherPriority.ApplicationIdle);
+            else ShowMainWindow();
+        }
     }
 
     private bool _trayHintShown;
