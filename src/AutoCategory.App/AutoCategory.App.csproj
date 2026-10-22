@@ -13,7 +13,7 @@
     <AssemblyName>Catego</AssemblyName>
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
     <Product>Catego</Product>
-    <Version>0.4.1</Version>
+    <Version>0.5.0</Version>
     <Description>זיהוי משחק אוטומטי ושינוי קטגוריה לסטרימרים</Description>
     <!-- מאפשר לבנות גם ממחשב שאינו Windows -->
     <EnableWindowsTargeting>true</EnableWindowsTargeting>

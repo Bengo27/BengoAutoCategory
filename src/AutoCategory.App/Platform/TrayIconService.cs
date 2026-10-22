@@ -11,6 +11,7 @@ public sealed class TrayIconService : IDisposable
     private readonly WinForms.ToolStripMenuItem _pauseItem;
 
     public event Action? OpenRequested;
+    public event Action? ClickRequested;
     public event Action? ToggleAutoRequested;
     public event Action? TogglePauseRequested;
     public event Action? ExitRequested;
@@ -28,7 +29,7 @@ public sealed class TrayIconService : IDisposable
 
         var title = new WinForms.ToolStripMenuItem("Catego") { Enabled = false };
         _autoItem = new WinForms.ToolStripMenuItem("קטגוריה אוטומטית: פועל");
-        var open = new WinForms.ToolStripMenuItem("פתח לוח בקרה");
+        var open = new WinForms.ToolStripMenuItem("הגדרות וכללים");
         _pauseItem = new WinForms.ToolStripMenuItem("השהה זיהוי");
         var exit = new WinForms.ToolStripMenuItem("יציאה");
 
@@ -52,8 +53,9 @@ public sealed class TrayIconService : IDisposable
             ContextMenuStrip = menu,
             Visible = true,
         };
-        _icon.DoubleClick += (_, _) => OpenRequested?.Invoke();
-        _icon.BalloonTipClicked += (_, _) => OpenRequested?.Invoke();
+        // לחיצה = החלון הקטן. החלון הגדול רק מ"הגדרות" (בתפריט או בחלון הקטן)
+        _icon.MouseClick += (_, e) => { if (e.Button == WinForms.MouseButtons.Left) ClickRequested?.Invoke(); };
+        _icon.BalloonTipClicked += (_, _) => ClickRequested?.Invoke();
     }
 
     public void SetState(bool autoEnabled, bool paused)
