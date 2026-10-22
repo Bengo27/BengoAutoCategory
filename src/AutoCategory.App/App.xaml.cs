@@ -13,6 +13,7 @@ public partial class App : Application
     private AppServices? _services;
     private TrayIconService? _tray;
     private MainWindow? _window;
+    private TrayFlyout? _flyout;
     private bool _exiting;
 
     public static AppServices Services => ((App)Current)._services!;
@@ -93,7 +94,7 @@ public partial class App : Application
                 if (!_trayHintShown && _services.Settings.Current.ShowNotifications)
                 {
                     _trayHintShown = true;
-                    _tray?.ShowNotification("Catego ממשיך לפעול", "הזיהוי ממשיך ברקע. לחיצה כפולה על האייקון פותחת את לוח הבקרה.");
+                    _tray?.ShowNotification("Catego ממשיך לפעול", "הזיהוי ממשיך ברקע. לחיצה על האייקון ליד השעון פותחת חלון קטן, לחיצה כפולה – את לוח הבקרה.");
                 }
             }
             else
@@ -103,6 +104,10 @@ public partial class App : Application
             }
         };
         MainWindow = _window;
+
+        _flyout = new TrayFlyout(_services, _window.Dashboard);
+        _flyout.OpenFullRequested += ShowMainWindow;
+        _tray.ClickRequested += () => Dispatcher.InvokeAsync(() => _flyout?.Toggle());
 
         _services.Start();
 
@@ -115,6 +120,7 @@ public partial class App : Application
     private void ShowMainWindow()
     {
         if (_window is null) return;
+        _flyout?.HideFlyout();
         if (!_window.IsVisible) _window.Show();
         if (_window.WindowState == WindowState.Minimized) _window.WindowState = WindowState.Normal;
         _window.Activate();
@@ -131,6 +137,7 @@ public partial class App : Application
         _services?.Dispose();
         _tray?.Dispose();
         _tray = null;
+        _flyout?.Close();
         _window?.Close();
         Shutdown();
     }

@@ -11,6 +11,7 @@ public sealed class TrayIconService : IDisposable
     private readonly WinForms.ToolStripMenuItem _pauseItem;
 
     public event Action? OpenRequested;
+    public event Action? ClickRequested;
     public event Action? ToggleAutoRequested;
     public event Action? TogglePauseRequested;
     public event Action? ExitRequested;
@@ -52,6 +53,8 @@ public sealed class TrayIconService : IDisposable
             ContextMenuStrip = menu,
             Visible = true,
         };
+        // לחיצה אחת = החלון הקטן, לחיצה כפולה = לוח הבקרה המלא
+        _icon.MouseClick += (_, e) => { if (e.Button == WinForms.MouseButtons.Left) ClickRequested?.Invoke(); };
         _icon.DoubleClick += (_, _) => OpenRequested?.Invoke();
         _icon.BalloonTipClicked += (_, _) => OpenRequested?.Invoke();
     }

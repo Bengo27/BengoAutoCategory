@@ -1,0 +1,99 @@
+<Window x:Class="AutoCategory.App.TrayFlyout"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Catego"
+        Width="340" SizeToContent="Height"
+        WindowStyle="None" ResizeMode="NoResize" AllowsTransparency="True" Background="Transparent"
+        ShowInTaskbar="False" Topmost="True" ShowActivated="True"
+        FlowDirection="RightToLeft"
+        Foreground="{StaticResource TextBrush}"
+        FontFamily="{StaticResource UiFont}"
+        UseLayoutRounding="True"
+        TextOptions.TextFormattingMode="Display">
+
+    <!-- חלון קטן שנפתח מהאייקון ליד השעון – בלי לתפוס מקום במסך -->
+    <Border Background="{StaticResource SidebarBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+            CornerRadius="12" Margin="8" Padding="16,14">
+        <Border.Effect>
+            <DropShadowEffect BlurRadius="18" ShadowDepth="2" Opacity="0.45" />
+        </Border.Effect>
+        <StackPanel>
+
+            <!-- כותרת -->
+            <DockPanel Margin="0,0,0,12">
+                <CheckBox DockPanel.Dock="Right" Style="{StaticResource ToggleSwitch}" IsChecked="{Binding AutoEnabled, Mode=TwoWay}"
+                          ToolTip="קטגוריה אוטומטית (כבוי = רק מציע ומחכה ל'שנה עכשיו')" VerticalAlignment="Center" />
+                <Image Source="Assets/logo.png" Width="24" Height="24" VerticalAlignment="Center" />
+                <StackPanel Margin="8,0,0,0" VerticalAlignment="Center">
+                    <TextBlock Text="catego" FontSize="15" FontWeight="Black" FlowDirection="LeftToRight" HorizontalAlignment="Right" />
+                    <TextBlock Text="קטגוריה אוטומטית" FontSize="10" Foreground="{StaticResource MutedBrush}" />
+                </StackPanel>
+            </DockPanel>
+
+            <!-- עדכון -->
+            <Border Visibility="{Binding UpdateVisible, Converter={StaticResource BoolToVis}}"
+                    Background="#0F2E2B" BorderBrush="{StaticResource AccentBrush}" BorderThickness="1"
+                    CornerRadius="8" Padding="10,8" Margin="0,0,0,10">
+                <DockPanel>
+                    <Button DockPanel.Dock="Right" Style="{StaticResource PrimaryButton}" Content="עדכן" Padding="10,4"
+                            Command="{Binding UpdateCommand}" />
+                    <TextBlock VerticalAlignment="Center" Foreground="{StaticResource AccentBrush}" FontSize="12"
+                               Text="{Binding UpdateText}" TextWrapping="Wrap" />
+                </DockPanel>
+            </Border>
+
+            <!-- הקטגוריה בקיק -->
+            <Border Background="{StaticResource CardBrush}" CornerRadius="8" Padding="12,10" Margin="0,0,0,8">
+                <StackPanel>
+                    <TextBlock Text="הקטגוריה בקיק" FontSize="11" Foreground="{StaticResource MutedBrush}" />
+                    <TextBlock Text="{Binding CurrentCategory}" FontSize="18" FontWeight="Bold" TextTrimming="CharacterEllipsis" Margin="0,2,0,0" />
+                </StackPanel>
+            </Border>
+
+            <!-- מה רץ עכשיו -->
+            <Border Background="{StaticResource CardBrush}" CornerRadius="8" Padding="12,10" Margin="0,0,0,8">
+                <StackPanel>
+                    <DockPanel>
+                        <Border DockPanel.Dock="Right" CornerRadius="9" Padding="8,1" BorderThickness="1" BorderBrush="{Binding KindBrush}">
+                            <TextBlock Text="{Binding KindText}" FontSize="10" FontWeight="SemiBold" Foreground="{Binding KindBrush}" />
+                        </Border>
+                        <TextBlock Text="על המסך עכשיו" FontSize="11" Foreground="{StaticResource MutedBrush}" />
+                    </DockPanel>
+                    <TextBlock Text="{Binding AppTitle}" FontSize="14" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Margin="0,2,0,0" />
+                    <TextBlock FontSize="12" Foreground="{StaticResource MutedBrush}" TextTrimming="CharacterEllipsis">
+                        <Run Text="קטגוריה מזוהה: " /><Run Text="{Binding DetectedCategory, Mode=OneWay}" />
+                    </TextBlock>
+                </StackPanel>
+            </Border>
+
+            <!-- מצב + ספירה -->
+            <Border Background="{StaticResource CardBrush}" CornerRadius="8" Padding="12,10" Margin="0,0,0,10">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <Ellipse Width="9" Height="9" Fill="{Binding PhaseBrush}" VerticalAlignment="Center" Margin="0,0,7,0" />
+                        <TextBlock Text="{Binding PhaseTitle}" FontWeight="SemiBold" FontSize="13" />
+                    </StackPanel>
+                    <TextBlock Text="{Binding StatusText}" FontSize="12" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,3,0,0" />
+                    <StackPanel Visibility="{Binding ShowCountdown, Converter={StaticResource BoolToVis}}" Margin="0,8,0,0">
+                        <DockPanel>
+                            <TextBlock DockPanel.Dock="Right" Text="{Binding CountdownText}" FontWeight="Bold" />
+                            <TextBlock Text="{Binding CountdownLabel}" FontSize="12" Foreground="{StaticResource MutedBrush}" />
+                        </DockPanel>
+                        <ProgressBar Value="{Binding CountdownProgress, Mode=OneWay}" Maximum="1" Height="4" Margin="0,5,0,0"
+                                     Foreground="{StaticResource AccentBrush}" Background="{StaticResource BorderBrush}" BorderThickness="0" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                        <Button Style="{StaticResource PrimaryButton}" Content="{Binding ChangeNowText}" Command="{Binding ChangeNowCommand}" Padding="12,5" Margin="0,0,8,0" />
+                        <Button Style="{StaticResource GhostButton}" Content="בטל" Command="{Binding CancelCommand}" Padding="12,5" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- תחתית -->
+            <DockPanel>
+                <Button x:Name="PauseButton" DockPanel.Dock="Left" Style="{StaticResource GhostButton}" Padding="10,5" Click="Pause_Click" />
+                <Button Style="{StaticResource GhostButton}" Content="פתח לוח בקרה מלא" Padding="10,5" HorizontalAlignment="Right" Click="Open_Click" />
+            </DockPanel>
+        </StackPanel>
+    </Border>
+</Window>
