@@ -94,7 +94,7 @@ public partial class App : Application
                 if (!_trayHintShown && _services.Settings.Current.ShowNotifications)
                 {
                     _trayHintShown = true;
-                    _tray?.ShowNotification("Catego ממשיך לפעול", "הזיהוי ממשיך ברקע. לחיצה על האייקון ליד השעון פותחת חלון קטן, לחיצה כפולה – את לוח הבקרה.");
+                    _tray?.ShowNotification("Catego ממשיך לפעול", "הזיהוי ממשיך ברקע. לחיצה על האייקון ליד השעון פותחת את החלון הקטן.");
                 }
             }
             else

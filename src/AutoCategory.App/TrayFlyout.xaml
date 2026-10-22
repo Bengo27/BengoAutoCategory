@@ -92,7 +92,7 @@
             <!-- תחתית -->
             <DockPanel>
                 <Button x:Name="PauseButton" DockPanel.Dock="Left" Style="{StaticResource GhostButton}" Padding="10,5" Click="Pause_Click" />
-                <Button Style="{StaticResource GhostButton}" Content="פתח לוח בקרה מלא" Padding="10,5" HorizontalAlignment="Right" Click="Open_Click" />
+                <Button Style="{StaticResource GhostButton}" Content="⚙ הגדרות וכללים" Padding="10,5" HorizontalAlignment="Right" Click="Open_Click" />
             </DockPanel>
         </StackPanel>
     </Border>
