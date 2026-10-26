@@ -33,6 +33,7 @@ export function defaultSettings() {
     rate: 0,
     volume: 80,
     template: "{user} אומר: {text}",
+    readName: true, // להקריא את שם הכותב לפני ההודעה
     maxChars: 200,
     blockLinks: true,
     manualApproval: false,
@@ -88,6 +89,7 @@ export function sanitizeSettings(input, old = defaultSettings()) {
   if ("geminiVoice" in i && GEMINI_VOICES[i.geminiVoice]) s.geminiVoice = i.geminiVoice;
   if ("rate" in i) s.rate = clamp(i.rate, -50, 50, s.rate);
   if ("volume" in i) s.volume = clamp(i.volume, 0, 100, s.volume);
+  if ("readName" in i) s.readName = !!i.readName;
   if ("template" in i) s.template = typeof i.template === "string" && i.template.includes("{text}") ? i.template.trim().slice(0, 100) : d.template;
   if ("maxChars" in i) s.maxChars = clamp(i.maxChars, 10, 400, s.maxChars);
   if ("blockLinks" in i) s.blockLinks = !!i.blockLinks;

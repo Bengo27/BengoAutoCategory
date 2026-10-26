@@ -8,7 +8,8 @@ import { defaultSettings, sanitizeSettings, checkMessage, applyTemplate, synthes
 
 /** פריט שקשור לקנייה בקיק (ולא בדיקה או הודעת צ'אט) – רק לו מאשרים/מחזירים נקודות. */
 const isRedemption = (item) => !item.test && !item.chat && !item.alert;
-const spokenText = (s, item) => item.spoken || applyTemplate(s.template, item.user, item.text);
+// readName כבוי → מקריאים רק את ההודעה, בלי שם הכותב (באירועים השם הוא חלק מהתודה ונשאר)
+const spokenText = (s, item) => item.spoken || (s.readName === false ? item.text : applyTemplate(s.template, item.user, item.text));
 const ALERT_FLAG = { kicks: "alertKicks", follow: "alertFollow", sub: "alertSub", gift: "alertGift" };
 import { seal, unseal, randomId } from "./crypto.js";
 import { npDefaults, sanitizeNp, validClientId, spotifyExchange, spotifyRefresh } from "./nowplaying.js";

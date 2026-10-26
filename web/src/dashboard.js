@@ -156,7 +156,9 @@ const BODY = `
           <div class="field"><label>מהירות: <span id="rateV"></span></label><input type="range" id="rate" min="-50" max="50" step="5"></div>
           <div class="field"><label>עוצמה: <span id="volumeV"></span></label><input type="range" id="volume" min="0" max="100" step="5"></div>
         </div>
-        <div class="field" style="margin-top:10px"><label>נוסח ההקראה</label><input type="text" id="template"><small>{user} = שם הצופה, {text} = ההודעה</small></div>
+        <div class="row" style="margin-top:6px"><div class="lbl">להקריא את שם הכותב<small>כבוי = מוקראת רק ההודעה עצמה, בלי "דני אומר:". (בהקראת אירועים השם נשאר – זו התודה.)</small></div>
+          <label class="switch"><input type="checkbox" id="readName"><span></span></label></div>
+        <div class="field" id="templateField" style="margin-top:10px"><label>נוסח ההקראה</label><input type="text" id="template"><small>{user} = שם הצופה, {text} = ההודעה</small></div>
         <div class="field" style="margin-top:10px"><label>טקסט לבדיקה</label><input type="text" id="testText" value="בדיקה, אחת שתיים. ככה ישמעו ההודעות בשידור!"></div>
         <div class="actions" style="margin-top:12px"><button class="primary" id="hearBtn">▶ השמע כאן</button><button id="obsTestBtn">שלח בדיקה ל-OBS</button></div>
       </div>
@@ -357,10 +359,10 @@ const FIELDS=["rewardTitle","rewardCost","rewardDescription","template","maxChar
  "alertKicksMin","alertKicksTemplate","alertFollowTemplate","alertSubTemplate","alertGiftTemplate"];
 const ALERTS=[["kicks","Kicks"],["follow","Follow"],["sub","Sub"],["gift","Gift"]];
 function loadForm(s){for(const k of FIELDS)$(k).value=s[k];$("manualApproval").checked=s.manualApproval;$("blockLinks").checked=s.blockLinks;
- $("chatEnabled").checked=!!s.chatEnabled;for(const [,K] of ALERTS)$("alert"+K).checked=!!s["alert"+K];$("alertShowCard").checked=!!s.alertShowCard;$("banned").value=(s.banned||[]).join("\n");setVoice(s.voice);setGVoice(s.geminiVoice||"Kore");setWho(s.chatWho||"all");setMode(s.playback||"edge");showRange();$("chatPrefix").oninput();}
+ $("chatEnabled").checked=!!s.chatEnabled;$("readName").checked=s.readName!==false;$("templateField").classList.toggle("hidden",s.readName===false);for(const [,K] of ALERTS)$("alert"+K).checked=!!s["alert"+K];$("alertShowCard").checked=!!s.alertShowCard;$("banned").value=(s.banned||[]).join("\n");setVoice(s.voice);setGVoice(s.geminiVoice||"Kore");setWho(s.chatWho||"all");setMode(s.playback||"edge");showRange();$("chatPrefix").oninput();}
 function collect(){return{rewardTitle:$("rewardTitle").value,rewardCost:+$("rewardCost").value,rewardDescription:$("rewardDescription").value,template:$("template").value,
  maxChars:+$("maxChars").value,gapSeconds:+$("gapSeconds").value,maxAgeMinutes:+$("maxAgeMinutes").value,rate:+$("rate").value,volume:+$("volume").value,
- manualApproval:$("manualApproval").checked,blockLinks:$("blockLinks").checked,voice,geminiVoice:gvoice,playback:mode,chatEnabled:$("chatEnabled").checked,
+ readName:$("readName").checked,manualApproval:$("manualApproval").checked,blockLinks:$("blockLinks").checked,voice,geminiVoice:gvoice,playback:mode,chatEnabled:$("chatEnabled").checked,
  chatPrefix:$("chatPrefix").value.trim(),chatCooldown:+$("chatCooldown").value,
  alertKicksMin:+$("alertKicksMin").value,alertKicksTemplate:$("alertKicksTemplate").value,alertFollowTemplate:$("alertFollowTemplate").value,
  alertSubTemplate:$("alertSubTemplate").value,alertGiftTemplate:$("alertGiftTemplate").value,
@@ -481,6 +483,8 @@ function renderChatDiag(s){const st=s.settings,ago=t=>{const m=Math.round((Date.
   c?"":"מגיעות התראות מקיק. כתוב בצ'אט "+ltr(st.chatPrefix)+" בדיקה ותראה כאן מה קרה.";}
 act("chatResync",async()=>{await post("chat-resync");toast("נרשמת מחדש להודעות צ'אט ✓");});
 
+$("readName").onchange=async e=>{$("templateField").classList.toggle("hidden",!e.target.checked);
+ try{await post("settings",{settings:{readName:e.target.checked}});toast(e.target.checked?"השם של הכותב יוקרא לפני ההודעה":"מעכשיו מוקראת רק ההודעה, בלי השם");}catch(err){toast(err.message,true);e.target.checked=!e.target.checked;}};
 // ── אירועים ──
 $("alertShowCard").onchange=async e=>{try{await post("settings",{settings:{alertShowCard:e.target.checked}});toast(e.target.checked?"באירועים תופיע גם התיבה":"באירועים – רק קול");}catch(err){toast(err.message,true);e.target.checked=!e.target.checked;}};
 const KIND_NAME={kicks:"Kicks",follow:"עוקב",sub:"סאב",gift:"סאבים במתנה"};

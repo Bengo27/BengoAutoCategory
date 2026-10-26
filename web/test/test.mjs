@@ -522,6 +522,19 @@ await test("alerts in Edge mode send nothing to OBS", async () => {
   check(overlay.last("play")?.silent === true, "with the toggle on the box shows");
 });
 
+await test("read name toggle", async () => {
+  const { o, call, d } = await freshChannel();
+  o.state.addSocket("overlay");
+  await call("enable", { enabled: true });
+  await call("settings", { settings: { readName: false } });
+  check(d().settings.readName === false, "readName saved");
+  await call("webhook", redeem("N1", 5, "שלום לכולם", "dani"));
+  await o.obj.tick();
+  const az = kick.calls.filter((c) => c.url.includes("tts.speech")).pop();
+  check(az && az.body.includes("שלום לכולם") && !az.body.includes("dani"), "name not spoken when off");
+  check(sanitizeSettings({}).readName === true, "default reads the name");
+});
+
 await test("now playing (spotify)", async () => {
   const { sanitizeNp, validClientId } = await import("../src/nowplaying.js");
   check(sanitizeNp({ theme: "vinyl", accent: "#ff0000", opacity: 5, scale: 0.1 }).theme === "vinyl" && sanitizeNp({ opacity: 5 }).opacity === 1 && sanitizeNp({ scale: 0.1 }).scale === 0.6, "np sanitize clamps");
